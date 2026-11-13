@@ -18,6 +18,9 @@ export const PRESETS = [
  {id:"road",label:"ROAD / ASPHALT",category:"Terrain",kind:"road",width:8,depth:4,height:0.24,color:"#566470",description:"Two-lane road slab, with real thickness"},
  {id:"road-local",label:"ROAD / NARROW",category:"Terrain",kind:"road",width:4,depth:8,height:0.24,color:"#62717c",description:"Narrow local street segment"},
  {id:"road-wide",label:"ROAD / WIDE",category:"Terrain",kind:"road",width:12,depth:8,height:0.24,color:"#475866",description:"Wide road / city boulevard"},
+ {id:"grass",label:"GRASS / PLOT",category:"Terrain",kind:"road",width:8,depth:8,height:0.15,color:"#7da769",description:"Planting ground · trees only here"},
+ {id:"grass-large",label:"GRASS / LARGE PLOT",category:"Terrain",kind:"road",width:12,depth:12,height:0.15,color:"#7da769",description:"Large plantable ground"},
+ {id:"zebra",label:"ZEBRA CROSS / WALKWAY",category:"Terrain",kind:"road",width:4,depth:2,height:0.25,color:"#e4e7e3",description:"Pedestrian crossing · NPCs can stand here"},
  {id:"sidewalk",label:"SIDEWALK",category:"Terrain",kind:"road",width:8,depth:2,height:0.42,color:"#c1bdaf",description:"Pedestrian slab with raised curb"},
  {id:"platform",label:"PLATFORM / FLOOR",category:"Terrain",kind:"platform",width:8,depth:8,height:0.35,color:"#97abb6",description:"Raised solid floor, stackable surface"},
  {id:"bridge",label:"BRIDGE / SLAB",category:"Terrain",kind:"platform",width:12,depth:5,height:0.6,color:"#8d969f",description:"Elevated road or walkable slab"},
@@ -70,7 +73,8 @@ export function newWorld(demo=true){
  for(const z of [-8,0,8])add('road',0,z);
  for(const z of [-8,0,8]){add('sidewalk',-5,z);add('sidewalk',5,z);}
  add('house',-11,-7);add('block',11,-6);add('tower',12,8);
- add('tree',-10,5);add('tree',-6,11);add('character',-4,2);add('bus',1,-2);
+ add('grass',-11,5);add('tree',-11,5.5,.15);
+ add('character',-5,2,.42);add('bus',1,-8,.24);
  const elevated=add('platform',-1,14,levelY(2));elevated.levelMode='level';elevated.level=2;
  const rooftop=add('house',-1,14,levelY(2)+.35);rooftop.levelMode='surface';
  return w;
