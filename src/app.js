@@ -18,14 +18,14 @@ let undoStack=[],redoStack=[],pendingFace=null,toastTimer=0,gesture=null;
 const touches=new Map();
 let renderer;
 let activeMode='webgl';
+let firstFrameValidated=false;
 function activateSafePreview(reason){
   const oldCanvas=$('world'),newCanvas=oldCanvas.cloneNode(false);
   oldCanvas.replaceWith(newCanvas);
   renderer=new CanvasIsoRenderer(newCanvas);
   renderer.gridOn=showGrid;
   activeMode='canvas';
-  const btn=$('safePreview');
-  if(btn){btn.textContent='▣ 2D SAFE ON';btn.title='CPU-only isometric preview enabled';}
+  for(const id of ['safePreview','safePreviewMobile']){const btn=$(id);if(btn){btn.textContent='▣ 2D SAFE ON';btn.title='CPU-only isometric preview enabled';}}
   const status=$('floatingStatus');
   if(status){
     status.style.display='block';status.style.opacity='1';status.style.pointerEvents='none';
@@ -184,10 +184,12 @@ function initInteractions(){
  $('placementLevel').onchange=setLevelControl;
  $('cameraType').onchange=()=>{renderer.camera.ortho=$('cameraType').value==='ortho';};
  $('gridSize').onchange=()=>{world.grid=finite($('gridSize').value,1);commit();};
- $('safePreview').onclick=()=>{
+ const enableSafePreview=()=>{
   if(activeMode==='webgl'){activateSafePreview('Manually enabled');initCanvas();notify('Basic isometric preview enabled');}
   else notify('Basic mode is active. Reload to retry WebGL.');
  };
+ $('safePreview').onclick=enableSafePreview;
+ $('safePreviewMobile').onclick=enableSafePreview;
  $('gridToggle').onclick=()=>{showGrid=!showGrid;renderer.gridOn=showGrid;$('gridToggle').classList.toggle('active',showGrid);};
  $('snapToggle').onclick=()=>{snapOn=!snapOn;$('snapToggle').classList.toggle('active',snapOn);};
  $('undo').onclick=undo;$('redo').onclick=redo;
@@ -281,6 +283,14 @@ function initCanvas(){const cv=$('world');
 function loop(){
  try{
   renderer.render(world.objects,selectedId,ghost);
+  if(activeMode==='webgl'&&!firstFrameValidated){
+   const gl=renderer.gl,pixel=new Uint8Array(4);
+   gl.readPixels(Math.floor(renderer.canvas.width/2),Math.floor(renderer.canvas.height/2),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
+   const error=gl.getError();
+   if(error!==gl.NO_ERROR||(pixel[0]<8&&pixel[1]<8&&pixel[2]<8)){
+    activateSafePreview('GPU framebuffer empty or invalid');initCanvas();
+   }else firstFrameValidated=true;
+  }
   if(activeMode==='webgl'&&renderer.gl.isContextLost()){
    activateSafePreview('WebGL context lost');initCanvas();
   }
