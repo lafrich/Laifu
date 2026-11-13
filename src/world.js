@@ -66,17 +66,29 @@ export function makeObject(id,x=0,z=0,y=0){
 }
 const newBase=()=>({schema:SCHEMA,version:1,title:'New Laifu World',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),grid:1,objects:[]});
 export function newWorld(demo=true){
- const w=newBase();
- if(!demo)return w;
+ const w=newBase();if(!demo)return w;
  w.title='Laifu / First City';
- const add=(p,x,z,y=0)=>{const o=makeObject(p,x,z,y);w.objects.push(o);return o;};
- for(const z of [-8,0,8])add('road',0,z);
- for(const z of [-8,0,8]){add('sidewalk',-5,z);add('sidewalk',5,z);}
- add('house',-11,-7);add('block',11,-6);add('tower',12,8);
- add('grass',-11,5);add('tree',-11,5.5,.15);
- add('character',-5,2,.42);add('bus',1,-8,.24);
- const elevated=add('platform',-1,14,levelY(2));elevated.levelMode='level';elevated.level=2;
- const rooftop=add('house',-1,14,levelY(2)+.35);rooftop.levelMode='surface';
+ const add=(preset,x,z,y=0,props={})=>{
+  const o=makeObject(preset,x,z,y);Object.assign(o,props);w.objects.push(o);return o;
+ };
+ // 8x8 road modules meet on shared GRID edges (never overlap).
+ for(const z of [-8,0,8]){
+  add('road',0,z,0,{width:8,depth:8});
+  add('sidewalk',-5,z,0,{width:2,depth:8});
+  add('sidewalk',5,z,0,{width:2,depth:8});
+ }
+ // Crossing markings intentionally sit ON asphalt, not underneath it.
+ add('zebra',0,0,.24,{width:8,depth:2});
+ add('grass',-10,4,0,{width:8,depth:8});
+ add('grass',10,12,0,{width:8,depth:8});
+ add('tree',-10,5,.15);
+ add('tree',10,12,.15);
+ add('character',-5,2,.42);
+ add('bus',0,-7,.24);
+ add('house',-15,-8);
+ add('block',15,-8);
+ const raised=add('platform',-14,15,levelY(2));raised.levelMode='level';raised.level=2;
+ const house=add('house',-14,15,levelY(2)+.35);house.levelMode='surface';
  return w;
 }
 export function validateObject(input){
