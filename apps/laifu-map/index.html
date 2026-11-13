@@ -1,1 +1,122 @@
-<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Laifu Map — test</title></head><body><div id="app"></div><script type="module" src="../../src/map.js"></script></body></html>
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#164d98" />
+  <meta name="description" content="Laifu, independent 3D placeholder world builder." />
+  <title>LAIFU.EXE — 3D World Editor</title>
+  <link rel="stylesheet" href="../../style.css" />
+  <script type="module" src="../../src/app.js"></script>
+</head>
+<body>
+<div id="desktop">
+  <div class="app-window">
+    <header class="titlebar">
+      <div class="app-name"><span class="app-logo">✳</span><strong>LAIFU</strong><span>.EXE</span><span class="title-suffix"> — ISOMETRIC 3D BUILDER</span></div>
+      <div class="title-controls"><button id="fullscreen" title="Fullscreen" aria-label="Fullscreen">□</button><button id="info" title="About Laifu" aria-label="About Laifu">?</button></div>
+    </header>
+    <nav class="menubar" aria-label="Project menu">
+      <button id="saveDraft">💾 Save City</button><button id="loadDraft">📁 My Cities</button>
+      <button id="exportJSON">⇩ Export JSON</button><button id="importJSON">⇧ Import JSON</button>
+      <button id="newWorld">＋ New World</button><button id="demoWorld">▦ Sample</button> <a href="../laifu-character/" style="color:#214a75;white-space:nowrap;padding:5px 7px;text-decoration:none">✎ Character Editor</a>
+      <div class="menu-grow"></div><span class="version">LAIFU / ISO 3D v0.2</span>
+    </nav>
+    <div class="workspace">
+      <aside class="tools-panel" aria-label="Editor tools">
+        <button class="tool active" data-mode="select" title="Select / drag">↖<small>SELECT</small></button>
+        <button class="tool" data-mode="place" title="Place asset">⊕<small>PLACE</small></button>
+        <button class="tool" data-mode="move" title="Move selected">✥<small>MOVE</small></button>
+        <button class="tool" data-mode="pan" title="Pan camera">✋<small>PAN</small></button>
+        
+        <div class="tool-rule"></div>
+        <button class="tool" id="undo" title="Undo (Ctrl+Z)">↶<small>UNDO</small></button>
+        <button class="tool" id="redo" title="Redo (Ctrl+Shift+Z)">↷<small>REDO</small></button>
+        <button class="tool" id="fit" title="Reset camera">⌂<small>FIT</small></button>
+        <button class="tool active" id="gridToggle" title="Toggle grid">▦<small>GRID</small></button>
+        <button class="tool active" id="snapToggle" title="Toggle grid snapping">⌗<small>SNAP</small></button>
+      </aside>
+      <aside class="assets-panel" id="assetsPanel" aria-label="Placeholder browser">
+        <div class="pane-header"><strong>FILES / ASSETS</strong><span class="count" id="assetCount">0</span><button class="mobile-close" id="closeAssets" title="Close">×</button></div>
+        <div class="assets-intro"><strong>PLACEHOLDER LIBRARY</strong><p>3D placeholders with real scale. Character/door 2u · 1 level 4u · building min 4u. No Semesta assets.</p></div>
+        <div class="search-box"><span>⌕</span><input id="assetSearch" type="search" placeholder="Search placeholder..." aria-label="Find placeholder" /></div>
+        <div class="tab-row"><button class="pill active" id="listView" aria-pressed="true">☷ List</button><button class="pill" id="gridView" aria-pressed="false">▦ Grid</button></div>
+        <div id="assetList" class="asset-list" role="list" aria-label="3D placeholders"></div>
+        <div class="assets-footer">Pilih bentuk & ukurannya, lalu tap map. Setelah placement, ubah W/H/D atau upload tekstur per sisi di Inspector.</div>
+      </aside>
+      <section class="center-panel" id="centerPanel" aria-label="3D canvas">
+        <header class="canvas-header"><span><strong>LAIFU</strong> / 3D WORLD</span><span>TRUE X · Y · Z <i class="live-dot"></i></span></header>
+        <div class="active-bar"><span class="active-label">ACTIVE ASSET</span><strong id="activeAsset">— NONE —</strong><span class="active-label active-mode" id="modeLabel">SELECT</span><button id="focus" title="Focus selected">◎ FOCUS</button></div>
+        <main class="canvas-wrap" id="canvasWrap">
+          <canvas id="world" aria-label="Interactive 3D Laifu world canvas"></canvas>
+          <div class="canvas-overlay canvas-top-left"><div class="eyebrow">WORLD / EDIT MODE</div><div class="scene-name" id="sceneName">LAIFU / FIRST CITY</div><div class="scene-meta" id="sceneMeta">12 OBJECTS · GRID 1.0</div></div>
+          <div class="canvas-overlay canvas-top-right"><div class="axis-hint"><b>Y</b> ↑ <span>HEIGHT</span></div><div class="scale-hint">1 DOOR = 2U<br/>1 LEVEL = 4U</div></div>
+          <div class="canvas-overlay canvas-bottom-left" id="canvasHint">CLICK OBJECT TO SELECT · RIGHT DRAG TO PAN · WHEEL TO ZOOM</div>
+          <div class="canvas-bottom-right"><button id="mobileAssets" class="mobile-action">▣ Assets</button><button id="mobileInspector" class="mobile-action">☷ Properties</button><button id="cameraReset" title="Reset camera">⌂</button></div>
+          <div id="floatingStatus" class="floating-status" role="status"></div>
+        </main>
+        <div class="canvas-toolbar">
+          <label>DROP ON <select id="placementLevel" aria-label="Placement elevation">
+            <option value="land">LAND / L0 · Y 0</option>
+            <option value="surface">TOP SURFACE / SNAP</option>
+            <option value="custom">CUSTOM Y</option>
+          </select></label>
+          <label class="tiny-control">Y <input type="number" id="placementY" value="0" min="-32" max="160" step=".25" disabled /></label>
+          <label class="tiny-control">GRID <select id="gridSize"><option value=".5">0.5</option><option value="1" selected>1</option><option value="2">2</option><option value="4">4</option></select></label>
+          <span class="version">◇ ISOMETRIC 2:1 · CAMERA LOCKED</span>
+          <span class="toolbar-space"></span>
+          <button id="copyObject" title="Duplicate selected">⧉ Duplicate</button>
+        </div>
+      </section>
+      <aside class="inspector-panel" id="inspectorPanel" aria-label="Object inspector">
+        <div class="pane-header"><strong>PROPERTIES / LOGIC</strong><span class="count" id="objectCount">00</span><button class="mobile-close" id="closeInspector" title="Close">×</button></div>
+        <div class="inspector-scroll">
+          <div class="selection-top"><div class="eyebrow">SELECTED OBJECT</div><strong id="selectedName">No Selection</strong><span id="selectedKind">WORLD / EDITOR</span></div>
+          <div class="object-actions"><button id="rotateL">↶ 90°</button><button id="rotateR">90° ↷</button><button id="duplicate">Duplicate</button><button id="replace">⇄ Replace</button><button id="delete" class="danger">Delete</button></div>
+          <div class="tab-row inspector-tabs"><button class="pill active" data-tab="layout">LAYOUT</button><button class="pill" data-tab="logic">LOGIC</button><button class="pill" data-tab="textures">TEXTURES</button></div>
+          <div id="emptyInspector"><div class="empty-symbol">◇</div><p>Select an object in the viewport, or choose an asset to place.</p></div>
+          <form id="propertyForm" autocomplete="off" hidden>
+            <div class="inspector-pane" data-pane="layout">
+              <div class="form-heading">IDENTITY</div>
+              <label class="field">NAME <input name="name" type="text" maxlength="100" /></label>
+              <div class="field-id" id="entityId"></div>
+              <div class="form-heading">POSITION / TRANSFORM</div>
+              <div class="field-grid three"><label class="field">X <input name="x" type="number" step=".25" /></label><label class="field">Y <input name="y" type="number" step=".25" /></label><label class="field">Z <input name="z" type="number" step=".25" /></label></div>
+              <div class="field-grid three"><label class="field">WIDTH <input name="width" type="number" min=".03" max="150" step=".25" /></label><label class="field">HEIGHT <input name="height" type="number" min=".04" max="150" step=".25" /></label><label class="field">DEPTH <input name="depth" type="number" min=".03" max="150" step=".25" /></label></div>
+              <div class="field-grid two"><label class="field">ROTATE ° <input name="rotation" type="number" step="15" /></label><label class="field">COLOR <input name="color" type="color" /></label></div>
+              <label class="field">OPACITY <input name="alpha" type="range" min=".15" max="1" step=".05" /><span id="alphaValue">100%</span></label>
+              <div class="form-heading">Y / ELEVATION</div>
+              <label class="field">PLACEMENT MODE <select name="levelMode" id="objectLevelMode"><option value="land">Land · L0</option><option value="surface">Top Surface · Snap</option><option value="custom">Custom Y</option></select></label>
+              <div class="level-details" id="levelDetails">Levels use 4 world units, equal to two doors stacked vertically.</div>
+              <label class="field">HEIGHT OFFSET Y <input id="heightSlider" type="range" min="-32" max="160" step=".25" value="0" /><output id="heightReadout">0.00</output></label>
+              <p class="help-note" id="buildingRule">Buildings are at least 4 units tall; characters are exactly 2 units tall.</p>
+            </div>
+            <div class="inspector-pane" data-pane="logic" hidden>
+              <div class="form-heading">LOGIC / MAP DATA</div>
+              <label class="field">CATEGORY <input name="kindView" readonly /></label>
+              <label class="field">TAGS <input name="tags" placeholder="house, home, district" /></label>
+              <label class="field">ACTIONS <input name="actions" placeholder="enter, interact, ride" /></label>
+              <label class="checkbox-row"><input name="blocking" type="checkbox" /> SOLID / BLOCKING</label>
+              <label class="checkbox-row"><input name="lock" type="checkbox" /> LOCK POSITION</label>
+              <label class="field">DEV NOTES <textarea name="notes" rows="6" placeholder="Notes for future model, textures, mechanics..."></textarea></label>
+              <div class="help-note">Logic metadata is saved to JSON. This version is a world editor, not a complete life-simulation.</div>
+            </div>
+            <div class="inspector-pane" data-pane="textures" hidden>
+              <div class="form-heading">MATERIAL / FACE MAPPING</div>
+              <p class="help-note">Replace each side independently. PNG, JPEG or WEBP files are embedded in the exported world JSON. For trees/characters, use one transparent plane image.</p>
+              <div id="faceRows"></div>
+              <p class="help-note">Orientation: FRONT = +Z, BACK = −Z, LEFT = −X, RIGHT = +X. Camera-facing planes automatically rotate toward the camera.</p>
+            </div>
+          </form>
+        </div>
+      </aside>
+    </div>
+    <footer class="statusbar"><div><span class="green-dot"></span><span id="saveStatus">LOCAL DRAFT</span></div><div id="coordinates">X 0 · Y 0 · Z 0</div><div id="statusCount">0 OBJECTS</div><div class="copyright">LAIFU · INDEPENDENT ENGINE</div></footer>
+  </div>
+</div>
+<div class="dialog-shade" id="dialogShade" hidden><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><header><strong id="dialogTitle">LAIFU / WINDOW</strong><button id="dialogClose" aria-label="Close">×</button></header><div id="dialogBody"></div><footer><button id="dialogCancel">CLOSE</button><button id="dialogConfirm" class="primary">OK</button></footer></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<input id="importFile" type="file" accept=".json,application/json" hidden />
+<input id="textureFile" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+</body>
+</html>

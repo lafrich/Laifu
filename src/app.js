@@ -19,7 +19,7 @@ const renderer=new Renderer($('world'));
 renderer.gridOn=true;
 let statusText='LOCAL DRAFT';
 const getSelected=()=>world.objects.find(o=>o.id===selectedId)||null;
-const allModes=['select','place','move','pan','orbit'];
+const allModes=['select','place','move','pan'];
 const faceNames=['front','back','left','right','top','bottom'];
 const iconMap={road:'▰',sidewalk:'▤',platform:'▦',house:'⌂',block:'▥',tower:'▥',vehicle:'▣',bus:'▣',tree:'♠',character:'♙',prop:'◈'};
 
@@ -37,11 +37,11 @@ function updateStatus(){const o=getSelected();$('saveStatus').textContent=status
  $('sceneName').textContent=world.title.toUpperCase();
  $('activeAsset').textContent=o?o.name:(mode==='place'?(templates[activePreset]?.label||'NONE'):'— NONE —');
  $('modeLabel').textContent=mode.toUpperCase();
- $('canvasHint').textContent=mode==='place'?'TAP TO DROP / CLICK TO PLACE · USE DROP ON TO CHANGE Y':mode==='move'?'DRAG AN OBJECT TO MOVE IT · Y STAYS FIXED':mode==='orbit'?'DRAG TO ORBIT CAMERA · PINCH TO ZOOM':'SELECT OBJECT · RIGHT DRAG ORBIT · WHEEL ZOOM';
+ $('canvasHint').textContent=mode==='place'?'TAP TO DROP / CLICK TO PLACE · USE DROP ON TO CHANGE Y':mode==='move'?'DRAG AN OBJECT TO MOVE IT · Y STAYS FIXED':'SELECT OBJECT · RIGHT DRAG PAN · WHEEL / PINCH ZOOM · ISO VIEW LOCKED';
  updateActions();}
 function setMode(next){if(!allModes.includes(next))return;mode=next;ghost=null;
  document.querySelectorAll('[data-mode]').forEach(el=>el.classList.toggle('active',el.dataset.mode===mode));
- $('world').style.cursor=mode==='pan'?'grab':mode==='orbit'?'move':mode==='place'?'crosshair':'default';
+ $('world').style.cursor=mode==='pan'?'grab':mode==='place'?'crosshair':'default';
  updateStatus();}
 function setSelected(id){selectedId=id;renderInspector();updateStatus();}
 function renderCatalog(){const query=$('assetSearch').value.toLowerCase().trim();const list=$('assetList');list.replaceChildren();list.classList.toggle('grid-view',assetGrid);
@@ -51,7 +51,7 @@ function renderCatalog(){const query=$('assetSearch').value.toLowerCase().trim()
   if(!options.length)continue;
   const head=document.createElement('div');head.className='asset-heading';head.textContent=group.toUpperCase();list.append(head);
   for(const p of options){const btn=document.createElement('button');btn.type='button';btn.className='asset-item'+(mode==='place'&&activePreset===p.id?' active':'');btn.setAttribute('role','listitem');btn.dataset.preset=p.id;
-   btn.innerHTML=`<span class="asset-ico" style="color:${safeHTML(p.color)}">${iconMap[p.id]}</span><span class="asset-copy"><strong>${safeHTML(p.label)}</strong><small>${safeHTML(p.description)}</small></span>`;
+   btn.innerHTML=`<span class="asset-ico" style="color:${safeHTML(p.color)}">${iconMap[p.id]||iconMap[p.kind]||'◈'}</span><span class="asset-copy"><strong>${safeHTML(p.label)}</strong><small>${p.width}×${p.depth}×${p.height}u · ${safeHTML(p.description)}</small></span>`;
    btn.addEventListener('click',()=>{activePreset=p.id;setMode('place');renderCatalog();notify(`${p.label} · tap the canvas to place`);if(innerWidth<821)$('assetsPanel').classList.remove('open');});list.append(btn);
   }
  }
@@ -194,7 +194,7 @@ function initInteractions(){
  $('saveDraft').onclick=()=>showDialog('SAVE CITY',`<label>WORLD NAME</label><input id="draftName" class="draft-name" maxlength="100" value="${safeHTML(world.title)}" /><p>Drafts are saved in this browser only. Export JSON for portable backups.</p>`,{confirm:'SAVE CITY',onConfirm:()=>{const name=$('draftName')?.value?.trim()||world.title;world.title=name;const drafts=loadLocal(DRAFTS_KEY,{});drafts[name]={savedAt:new Date().toISOString(),world:serializeWorld(world)};
  try{localStorage.setItem(DRAFTS_KEY,JSON.stringify(drafts));saveLocal();refresh();notify(`Saved ${name}`);}catch{notify('Browser storage full. Export JSON instead.');}}});
  $('loadDraft').onclick=()=>openDrafts();
- $('info').onclick=()=>showDialog('ABOUT LAIFU',`<strong>LAIFU.EXE · Independent 3D World Editor</strong><p>A new world editor built from scratch, with no Semesta code or assets.</p><p><strong>Scale:</strong> 1 door = 1 character = 2 units. 1 level = 2 doors = 4 units. Buildings are at least 4 units high.</p><p><strong>World:</strong> Y-up, actual 3D surfaces, six-sided textured cuboids for buildings/vehicles, camera-facing planes for characters/trees.</p><p><strong>Mouse:</strong> left click select/place, drag selected to move, right drag orbit, middle drag pan, wheel zoom. <strong>Touch:</strong> tools on left; two fingers to pinch and pan.</p><p><strong>File:</strong> JSON contains world geometry, logic metadata and embedded textures. Browser autosave is local-only; no Drive integration or Semesta dependency.</p>`,{hideConfirm:true});
+ $('info').onclick=()=>showDialog('ABOUT LAIFU',`<strong>LAIFU.EXE · Independent 3D World Editor</strong><p>A new world editor built from scratch, with no Semesta code or assets.</p><p><strong>Scale:</strong> 1 door = 1 character = 2 units. 1 level = 2 doors = 4 units. Buildings are at least 4 units high.</p><p><strong>World:</strong> Y-up, actual 3D surfaces, six-sided textured cuboids for buildings/vehicles, camera-facing planes for characters/trees.</p><p><strong>Mouse:</strong> left click select/place, drag selected to move, right/middle drag pan (isometric view locked), wheel zoom. <strong>Touch:</strong> tools on left; two fingers to pinch and pan.</p><p><strong>File:</strong> JSON contains world geometry, logic metadata and embedded textures. Browser autosave is local-only; no Drive integration or Semesta dependency.</p>`,{hideConfirm:true});
  window.addEventListener('keydown',e=>{
   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}
@@ -227,7 +227,7 @@ function initCanvas(){const cv=$('world');
   cv.setPointerCapture(e.pointerId);touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(touches.size===2){const p=[...touches.values()];gesture={distance:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),cx:(p[0].x+p[1].x)/2,cy:(p[0].y+p[1].y)/2};pointer=null;ghost=null;return;}
   if(touches.size>2)return;
-  const intent=e.button===2?'orbit':e.button===1?'pan':mode;
+  const intent=e.button===2||e.button===1?'pan':mode;
   const hit=intent==='select'||intent==='move'?getRayHit(e.clientX,e.clientY):null;
   if(hit?.entity&&['select','move'].includes(intent))setSelected(hit.entity.id);
   pointer={id:e.pointerId,initialX:e.clientX,initialY:e.clientY,x:e.clientX,y:e.clientY,intent,hit:!!hit,moved:false};dragging=false;
@@ -238,7 +238,7 @@ function initCanvas(){const cv=$('world');
    renderer.zoom(-Math.log(Math.max(.1,len)/Math.max(.1,gesture.distance))*780);renderer.pan(cx-gesture.cx,cy-gesture.cy);gesture={distance:len,cx,cy};return;}
   if(pointer?.id===e.pointerId){const dx=e.clientX-pointer.x,dy=e.clientY-pointer.y;
    if(Math.hypot(e.clientX-pointer.initialX,e.clientY-pointer.initialY)>4)pointer.moved=true;
-   if(pointer.moved){if(pointer.intent==='orbit')renderer.orbit(dx,dy);else if(pointer.intent==='pan')renderer.pan(dx,dy);else if(['move','select'].includes(pointer.intent)&&pointer.hit)moveDrag(e.clientX,e.clientY);}
+   if(pointer.moved){if(pointer.intent==='pan')renderer.pan(dx,dy);else if(['move','select'].includes(pointer.intent)&&pointer.hit)moveDrag(e.clientX,e.clientY);}
    pointer.x=e.clientX;pointer.y=e.clientY;
   }else if(!touches.size)hoverPosition(e.clientX,e.clientY);
  });

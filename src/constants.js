@@ -1,4 +1,4 @@
-export const LAIFU_SCALE = Object.freeze({doorUnits:1,characterHeight:1,levelHeight:2,minBuildingHeight:2});
+export const LAIFU_SCALE = Object.freeze({doorUnits:2,characterHeight:2,levelHeight:4,minBuildingHeight:4});
 export const FRAME={width:64,height:112,footX:32,footY:107};
 export const VIEWS=['front','left','right','back'];
 export const PALETTE=['#f4c6a6','#d99b7a','#9b614d','#24364c','#46627a','#6f9baa','#25273c','#444866','#f0dfce','#ffffff','#d1586b','#c0b17c','#161924','#000000'];

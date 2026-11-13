@@ -21,7 +21,7 @@ app.innerHTML=`<div class="app">
   <aside class="sidebar"><div class="section-title">GENESIS TEMPLATE <span class="tag">BASE 01</span></div>
     <div class="stack"><label class="field">Nama karakter <input id="char-name" value="Genesis 01" maxlength="60"></label><label class="field">Kategori Genesis<select id="category"><option value="male">Male Genesis</option><option value="female">Female Genesis</option></select></label></div>
     <div class="section-title">BODY PARTS <span id="part-count">17</span></div><div id="parts" class="parts"></div>
-    <div class="hr"></div><div class="section-title">ATURAN SKALA LAIFU</div><div class="summary-box">Karakter = <b>1 pintu = 1 unit</b><br>1 level = <b>2 unit</b><br>Bangunan terkecil = <b>2 unit</b><br>Foot pivot = <b>Y 0 di map</b></div>
+    <div class="hr"></div><div class="section-title">ATURAN SKALA LAIFU</div><div class="summary-box">Karakter = <b>1 pintu = 2 unit</b><br>1 level = <b>4 unit (2 pintu)</b><br>Bangunan terkecil = <b>4 unit</b><br>Foot pivot = <b>Y 0 di map</b></div>
     <p class="notice">Satu template dasar. Male/Female adalah kategori ekspor; pixel tiap bagian bisa disesuaikan sendiri.</p>
   </aside>
   <main class="stage"><div class="toolbar" id="tools">
