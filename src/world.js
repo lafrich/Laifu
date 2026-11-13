@@ -18,7 +18,9 @@ export const PRESETS = [
  {id:"road",label:"ROAD / ASPHALT",category:"Terrain",kind:"road",width:8,depth:4,height:0.24,color:"#566470",description:"Two-lane road slab, with real thickness"},
  {id:"road-local",label:"ROAD / NARROW",category:"Terrain",kind:"road",width:4,depth:8,height:0.24,color:"#62717c",description:"Narrow local street segment"},
  {id:"road-wide",label:"ROAD / WIDE",category:"Terrain",kind:"road",width:12,depth:8,height:0.24,color:"#475866",description:"Wide road / city boulevard"},
- {id:"sidewalk",label:"SIDEWALK",category:"Terrain",kind:"road",width:8,depth:2,height:0.42,color:"#c1bdaf",description:"Pedestrian slab with raised curb"},
+ {id:"sidewalk",label:"SIDEWALK / TROTOAR",category:"Terrain",kind:"road",width:2,depth:8,height:0.42,color:"#c1bdaf",description:"Pedestrian-only tile · aligns to the road edge"},
+ {id:"grass",label:"GRASS / RUMPUT",category:"Terrain",kind:"road",width:8,depth:8,height:0.10,color:"#78a47b",description:"Vegetation and building land · edge-aligned grid tile"},
+ {id:"crosswalk",label:"ZEBRA CROSS",category:"Terrain",kind:"road",width:8,depth:2,height:0.022,color:"#eff4ec",description:"Painted pedestrian crossing · must overlay asphalt"},
  {id:"platform",label:"PLATFORM / FLOOR",category:"Terrain",kind:"platform",width:8,depth:8,height:0.35,color:"#97abb6",description:"Raised solid floor, stackable surface"},
  {id:"bridge",label:"BRIDGE / SLAB",category:"Terrain",kind:"platform",width:12,depth:5,height:0.6,color:"#8d969f",description:"Elevated road or walkable slab"},
  {id:"kiosk",label:"BUILDING / KIOSK",category:"Buildings",kind:"building",width:3,depth:3,height:4,color:"#ddb594",description:"Smallest building: 2 doors = 4u"},
@@ -38,7 +40,7 @@ export const PRESETS = [
  {id:"tree-small",label:"TREE / SMALL PLANE",category:"Planes",kind:"tree",width:2,depth:0.03,height:3.5,color:"#8daf88",description:"Camera-facing vegetation plane"},
  {id:"tree",label:"TREE / MEDIUM PLANE",category:"Planes",kind:"tree",width:3,depth:0.03,height:6,color:"#70a988",description:"Camera-facing vegetation plane"},
  {id:"tree-large",label:"TREE / LARGE PLANE",category:"Planes",kind:"tree",width:5,depth:0.03,height:10,color:"#5f9878",description:"Tall vegetation plane"},
- {id:"character",label:"CHARACTER / PLANE",category:"Planes",kind:"character",width:1,depth:0.03,height:2,color:"#d19d8e",description:"1 door = 2u · world-facing character plane"},
+ {id:"character",label:"NPC / CHARACTER PLANE",category:"Planes",kind:"character",width:1,depth:0.03,height:2,color:"#d19d8e",description:"NPC must stand on sidewalk or zebra cross · world-facing plane"},
  {id:"prop",label:"PROP / BOX",category:"Props",kind:"prop",width:1.5,depth:1.5,height:1.5,color:"#afb3c0",description:"Generic editable solid cuboid"},
  {id:"bench",label:"BENCH / BOX",category:"Props",kind:"prop",width:2,depth:0.8,height:0.9,color:"#ad9579",description:"Small street or park furniture"},
  {id:"lamp",label:"STREET LAMP / BOX",category:"Props",kind:"prop",width:0.5,depth:0.5,height:5,color:"#899da8",description:"Tall utility placeholder"},
@@ -63,16 +65,30 @@ export function makeObject(id,x=0,z=0,y=0){
 }
 const newBase=()=>({schema:SCHEMA,version:1,title:'New Laifu World',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),grid:1,objects:[]});
 export function newWorld(demo=true){
- const w=newBase();
- if(!demo)return w;
- w.title='Laifu / First City';
- const add=(p,x,z,y=0)=>{const o=makeObject(p,x,z,y);w.objects.push(o);return o;};
- for(const z of [-8,0,8])add('road',0,z);
- for(const z of [-8,0,8]){add('sidewalk',-5,z);add('sidewalk',5,z);}
- add('house',-11,-7);add('block',11,-6);add('tower',12,8);
- add('tree',-10,5);add('tree',-6,11);add('character',-4,2);add('bus',1,-2);
- const elevated=add('platform',-1,14,levelY(2));elevated.levelMode='level';elevated.level=2;
- const rooftop=add('house',-1,14,levelY(2)+.35);rooftop.levelMode='surface';
+ const w=newBase();if(!demo)return w;
+ w.title='Laifu / First City — Zoning Sample';
+ const add=(preset,x,z,y=0,dimensions={})=>{
+  const o=makeObject(preset,x,z,y);
+  Object.assign(o,dimensions);w.objects.push(o);return o;
+ };
+ // Every tile has edges aligned to the 1-unit lattice. Road at X -4..+4,
+ // sidewalk at -6..-4 / +4..+6, and grass beyond ±6.
+ add('grass',-14,0,0,{width:16,depth:28});
+ add('grass',14,0,0,{width:16,depth:28});
+ add('road',0,0,0,{width:8,depth:28});
+ add('sidewalk',-5,0,0,{width:2,depth:28});
+ add('sidewalk',5,0,0,{width:2,depth:28});
+ // Crosswalk = paint above asphalt, ends touch both sidewalks.
+ add('crosswalk',0,2,.246,{width:8,depth:2});
+ // Every character/vehicle/tree sits on its allowed surface TOP, not Y=0.
+ add('house',-14,-8,.10);
+ add('shop',14,-8,.10);
+ add('tree',-9,7,.10);
+ add('tree-small',10,8,.10);
+ add('character',-5,-2,.42);
+ add('character',5,6,.42);
+ add('bus',0,-7,.24);
+ add('vehicle',1,8,.24);
  return w;
 }
 export function validateObject(input){
