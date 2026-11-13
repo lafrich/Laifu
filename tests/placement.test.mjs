@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {newWorld,makeObject,DOOR_HEIGHT,LEVEL_STEP,MIN_BUILDING_HEIGHT} from '../src/world.js';
-import {evaluatePlacement,surfaceType,snapObject,footprintIntersects,findPlayerSpawn,simulateStep} from '../src/placement-rules.js';
+import {evaluatePlacement,surfaceType,snapObject,footprintIntersects,findPlayerSpawn,simulateStep,validateDependents} from '../src/placement-rules.js';
 
 const sample=()=>newWorld(true);
 const evalAt=(id,x,z,objects=sample(),rotation=0)=>evaluatePlacement(
@@ -72,4 +72,25 @@ test('simulation starts on sidewalk and cannot cross forbidden terrain or obstac
  assert.equal(current.ok,true);
  const outside=simulateStep({...player,x:-5,z:10},-4,0,w);
  assert.equal(outside.ok,false);
+});
+
+test('removing a supporting road or grass tile is blocked while occupied',()=>{
+ const w=sample().objects;
+ const road=w.find(o=>o.preset==='road');
+ const grass=w.find(o=>o.preset==='grass'&&o.x<0);
+ const vehicle=w.find(o=>o.kind==='vehicle');
+ const tree=w.find(o=>o.kind==='tree'&&o.x<0);
+ assert.ok(vehicle&&tree);
+ assert.equal(validateDependents(road,null,w).ok,false);
+ assert.equal(validateDependents(grass,null,w).ok,false);
+ assert.equal(validateDependents(road,{...road,x:24},w).ok,false);
+ assert.equal(validateDependents(road,{...road},w).ok,true);
+});
+test('valid pedestrian steps stay on sidewalk / crosswalk, not grass',()=>{
+ const w=sample().objects,player=findPlayerSpawn(w);
+ assert.ok(player);
+ const forward=simulateStep(player,0,.4,w);
+ assert.equal(forward.ok,true);
+ const invalid=simulateStep({...player,x:-5,z:10},-3,0,w);
+ assert.equal(invalid.ok,false);
 });
