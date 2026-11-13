@@ -27,7 +27,7 @@ function activateSafePreview(reason){
   const oldCanvas=$('world'),newCanvas=oldCanvas.cloneNode(false);
   oldCanvas.replaceWith(newCanvas);
   renderer=new CanvasIsoRenderer(newCanvas);
-  renderer.gridOn=showGrid;
+  renderer.gridOn=showGrid;renderer.gridStep=world.grid;
   activeMode='canvas';
   for(const id of ['safePreview','safePreviewMobile']){const btn=$(id);if(btn){btn.textContent='▣ 2D SAFE ON';btn.title='CPU-only isometric preview enabled';}}
   const status=$('floatingStatus');
@@ -279,7 +279,7 @@ function setLevelControl(){const v=$('placementLevel').value;$('placementY').dis
  if(v.startsWith('level:')){const y=levelY(+v.split(':')[1]);renderer.camera.target[1]=y;notify(`DROP HEIGHT · L${v.split(':')[1]} · Y ${y}`);}
  if(v==='land')renderer.camera.target[1]=0;
 }
-function updateWorld(newData){world=newData;selectedId=null;ghost=null;undoStack=[];redoStack=[];renderer.fit();saveLocal();refresh();}
+function updateWorld(newData){if(simulating)stopSimulation();world=newData;selectedId=null;ghost=null;undoStack=[];redoStack=[];renderer.gridStep=world.grid;renderer.buildGrid?.();renderer.fit();saveLocal();refresh();}
 function refresh(){renderInspector();renderCatalog();updateStatus();invalidate();}
 let cameraBeforeSimulation=null;
 function setSimulationReadout(message){
@@ -365,19 +365,33 @@ function initInteractions(){
  document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
  $('placementLevel').onchange=setLevelControl;
  // Orthographic isometric projection is locked in the renderer; no cameraType control exists.
- $('gridSize').onchange=()=>{world.grid=finite($('gridSize').value,1);commit();};
+ $('gridSize').onchange=()=>{world.grid=finite($('gridSize').value,1);renderer.gridStep=world.grid;renderer.buildGrid?.();commit();placementMessage('GRID '+world.grid+'U · batas tile tersinkron',null);};
  const enableSafePreview=()=>{
   if(activeMode==='webgl'){activateSafePreview('Manually enabled');initCanvas();notify('Basic isometric preview enabled');}
   else notify('Basic mode is active. Reload to retry WebGL.');
  };
  $('safePreview').onclick=enableSafePreview;
  $('safePreviewMobile').onclick=enableSafePreview;
- $('gridToggle').onclick=()=>{showGrid=!showGrid;renderer.gridOn=showGrid;$('gridToggle').classList.toggle('active',showGrid);};
- $('snapToggle').onclick=()=>{snapOn=!snapOn;$('snapToggle').classList.toggle('active',snapOn);};
+ $('gridToggle').onclick=()=>{showGrid=!showGrid;renderer.gridOn=showGrid;$('gridToggle').classList.toggle('active',showGrid);placementMessage('GRID '+(showGrid?'VISIBLE':'HIDDEN')+' · snap '+(snapOn?'ON':'OFF'),null);};
+ $('snapToggle').onclick=()=>{snapOn=!snapOn;$('snapToggle').classList.toggle('active',snapOn);placementMessage('SNAP '+(snapOn?'ON':'OFF')+' · anti-overlap + zona tetap aktif',null);};
  $('undo').onclick=undo;$('redo').onclick=redo;
  $('fit').onclick=$('cameraReset').onclick=()=>renderer.fit();
  $('focus').onclick=()=>renderer.focus(getSelected());
  $('rotateL').onclick=()=>rotate(-90);$('rotateR').onclick=()=>rotate(90);
+ $('rotatePlacementL').onclick=()=>rotatePlacement(-90);
+ $('rotatePlacementR').onclick=()=>rotatePlacement(90);
+ $('simulatePlayer').onclick=toggleSimulation;
+ $('simulateMobile').onclick=toggleSimulation;
+ $('simExit').onclick=stopSimulation;
+ $('simAction').onclick=simulationAction;
+ for(const button of document.querySelectorAll('[data-walk]')){
+  const name=button.dataset.walk;
+  button.addEventListener('pointerdown',e=>{e.preventDefault();button.setPointerCapture(e.pointerId);heldKeys.add(name);});
+  const release=e=>{e.preventDefault();heldKeys.delete(name);};
+  button.addEventListener('pointerup',release);
+  button.addEventListener('pointercancel',release);
+  button.addEventListener('lostpointercapture',()=>heldKeys.delete(name));
+ }
  $('duplicate').onclick=$('copyObject').onclick=duplicate;
  $('delete').onclick=removeSelected;$('replace').onclick=replaceSelected;
  $('mobileAssets').onclick=()=>$('assetsPanel').classList.toggle('open');
@@ -406,6 +420,14 @@ function initInteractions(){
  $('info').onclick=()=>showDialog('ABOUT LAIFU',`<strong>LAIFU.EXE · Independent 3D World Editor</strong><p>A new world editor built from scratch, with no Semesta code or assets.</p><p><strong>Scale:</strong> 1 door = 1 character = 2 units. 1 level = 2 doors = 4 units. Buildings are at least 4 units high.</p><p><strong>World:</strong> Y-up, actual 3D surfaces, six-sided textured cuboids for buildings/vehicles, world-heading character planes, camera-facing tree planes.</p><p><strong>Mouse:</strong> left click select/place, drag selected to move, right/middle drag pan (isometric view locked), wheel zoom. <strong>Touch:</strong> tools on left; two fingers to pinch and pan.</p><p><strong>File:</strong> JSON contains world geometry, logic metadata and embedded textures. Browser autosave is local-only; no Drive integration or Semesta dependency.</p>`,{hideConfirm:true});
  window.addEventListener('keydown',e=>{
   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
+  if(simulating){
+   const keys={w:'up',arrowup:'up',s:'down',arrowdown:'down',a:'left',arrowleft:'left',d:'right',arrowright:'right'};
+   const key=e.key.toLowerCase();
+   if(keys[key]){e.preventDefault();heldKeys.add(keys[key]);}
+   if(key==='e'||key===' '){e.preventDefault();simulationAction();}
+   if(key==='escape'){e.preventDefault();stopSimulation();}
+   return;
+  }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}
   else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();}
   else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();removeSelected();}
@@ -413,6 +435,11 @@ function initInteractions(){
   else if(e.key.toLowerCase()==='g'){renderer.gridOn=!renderer.gridOn;}
   else if(e.key==='f'){renderer.focus(getSelected());}
  });
+ window.addEventListener('keyup',e=>{
+  const keys={w:'up',arrowup:'up',s:'down',arrowdown:'down',a:'left',arrowleft:'left',d:'right',arrowright:'right'};
+  const key=keys[e.key.toLowerCase()];if(key)heldKeys.delete(key);
+ });
+ window.addEventListener('blur',()=>heldKeys.clear());
 }
 function openDrafts(){const drafts=loadLocal(DRAFTS_KEY,{});const shade=$('dialogBody');const keys=Object.keys(drafts).sort((a,b)=>(drafts[b].savedAt||'').localeCompare(drafts[a].savedAt||''));
  const html=keys.length?keys.map(name=>`<div class="draft-row"><div><strong>${safeHTML(name)}</strong><small>${safeHTML(drafts[name].savedAt?.slice(0,16).replace('T',' ')||'')}</small></div><div><button type="button" data-load="${safeHTML(name)}">OPEN</button> <button type="button" data-remove="${safeHTML(name)}">DELETE</button></div></div>`).join(''):'<p>No saved drafts yet. Use Save City to create one.</p>';
@@ -432,7 +459,7 @@ function initCanvas(){const cv=$('world');
  cv.addEventListener('contextmenu',e=>e.preventDefault());
  cv.addEventListener('wheel',e=>{e.preventDefault();renderer.zoom(e.deltaY);},{passive:false});
  cv.addEventListener('pointerdown',e=>{
-  if(!$('dialogShade').hidden)return;
+  if(simulating||!$('dialogShade').hidden)return;
   cv.setPointerCapture(e.pointerId);touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(touches.size===2){const p=[...touches.values()];gesture={distance:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),cx:(p[0].x+p[1].x)/2,cy:(p[0].y+p[1].y)/2};pointer=null;ghost=null;return;}
   if(touches.size>2)return;
@@ -442,6 +469,7 @@ function initCanvas(){const cv=$('world');
   pointer={id:e.pointerId,initialX:e.clientX,initialY:e.clientY,x:e.clientX,y:e.clientY,intent,hit:!!hit,moved:false};dragging=false;
  });
  cv.addEventListener('pointermove',e=>{
+  if(simulating)return;
   const data=touches.get(e.pointerId);if(data){data.x=e.clientX;data.y=e.clientY;}
   if(touches.size>=2&&gesture){const pts=[...touches.values()],len=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y),cx=(pts[0].x+pts[1].x)/2,cy=(pts[0].y+pts[1].y)/2;
    renderer.zoom(-Math.log(Math.max(.1,len)/Math.max(.1,gesture.distance))*780);renderer.pan(cx-gesture.cx,cy-gesture.cy);gesture={distance:len,cx,cy};return;}
@@ -462,9 +490,13 @@ function initCanvas(){const cv=$('world');
  cv.addEventListener('pointerup',endPointer);cv.addEventListener('pointercancel',e=>{touches.delete(e.pointerId);gesture=null;pointer=null;if(dragging)commit();dragging=false;});
  cv.addEventListener('pointerleave',()=>{if(!pointer)ghost=null;});
 }
-function loop(){
+function loop(timestamp=0){
+ const dt=lastFrame?Math.min(.05,Math.max(0,(timestamp-lastFrame)/1000)):0;
+ lastFrame=timestamp;
+ simulationTick(dt);
  try{
-  renderer.render(world.objects,selectedId,ghost);
+  const objects=simulating&&simPlayer?[...world.objects,simPlayer]:world.objects;
+  renderer.render(objects,simulating?null:selectedId,simulating?null:ghost);
   if(activeMode==='webgl'&&!firstFrameValidated){
    const gl=renderer.gl,pixel=new Uint8Array(4);
    gl.readPixels(Math.floor(renderer.canvas.width/2),Math.floor(renderer.canvas.height/2),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
