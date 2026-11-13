@@ -29,7 +29,7 @@ window.addEventListener('unhandledrejection',function(e){
     <nav class="menubar" aria-label="Project menu">
       <button id="saveDraft">💾 Save City</button><button id="loadDraft">📁 My Cities</button>
       <button id="exportJSON">⇩ Export JSON</button><button id="importJSON">⇧ Import JSON</button>
-      <button id="newWorld">＋ New World</button><button id="demoWorld">▦ Sample</button> <a href="../laifu-character/" style="color:#214a75;white-space:nowrap;padding:5px 7px;text-decoration:none">✎ Character Editor</a>
+      <button id="newWorld">＋ New World</button><button id="demoWorld">▦ Sample</button><button id="simulatePlayer" class="simulate-main">▶ SIMULATE PLAYER</button> <a href="../laifu-character/" style="color:#214a75;white-space:nowrap;padding:5px 7px;text-decoration:none">✎ Character Editor</a>
       <div class="menu-grow"></div><span class="version">LAIFU / ISO 3D v0.2</span>
     </nav>
     <div class="workspace">
@@ -52,7 +52,7 @@ window.addEventListener('unhandledrejection',function(e){
         <div class="search-box"><span>⌕</span><input id="assetSearch" type="search" placeholder="Search placeholder..." aria-label="Find placeholder" /></div>
         <div class="tab-row"><button class="pill active" id="listView" aria-pressed="true">☷ List</button><button class="pill" id="gridView" aria-pressed="false">▦ Grid</button></div>
         <div id="assetList" class="asset-list" role="list" aria-label="3D placeholders"></div>
-        <div class="assets-footer">Pilih bentuk & ukurannya, lalu tap map. Setelah placement, ubah W/H/D atau upload tekstur per sisi di Inspector.</div>
+        <div class="assets-footer">Grid mengikuti ukuran tile. Grass untuk pohon/bangunan, aspal untuk kendaraan, trotoar/zebra untuk NPC. Rotasi placement memakai tombol ↶/↷. Overlap solid ditolak.</div>
       </aside>
       <section class="center-panel" id="centerPanel" aria-label="3D canvas">
         <header class="canvas-header"><span><strong>LAIFU</strong> / 3D WORLD</span><span>TRUE X · Y · Z <i class="live-dot"></i></span></header>
@@ -62,7 +62,20 @@ window.addEventListener('unhandledrejection',function(e){
           <div class="canvas-overlay canvas-top-left"><div class="eyebrow">WORLD / EDIT MODE</div><div class="scene-name" id="sceneName">LAIFU / FIRST CITY</div><div class="scene-meta" id="sceneMeta">12 OBJECTS · GRID 1.0</div></div>
           <div class="canvas-overlay canvas-top-right"><div class="axis-hint"><b>Y</b> ↑ <span>HEIGHT</span></div><div class="scale-hint">1 DOOR = 2U<br/>1 LEVEL = 4U</div></div>
           <div class="canvas-overlay canvas-bottom-left" id="canvasHint">CLICK OBJECT TO SELECT · RIGHT DRAG TO PAN · WHEEL TO ZOOM</div>
-          <div class="canvas-bottom-right"><button id="safePreviewMobile" class="mobile-action" title="Force CPU isometric preview">▣ Safe 2D</button><button id="mobileAssets" class="mobile-action">▣ Assets</button><button id="mobileInspector" class="mobile-action">☷ Properties</button><button id="cameraReset" title="Reset camera">⌂</button></div>
+          <div class="simulation-hud" id="simulationHud" hidden>
+  <div class="sim-title">PLAYER SIMULATION · sidewalks / zebra only</div>
+  <div class="sim-sub" id="simReadout">WASD / ARROWS · Touch D-pad · E = ACTION</div>
+  <div class="sim-pad">
+    <div class="sim-directions">
+      <button data-walk="up" class="sim-up" aria-label="Move up">▲</button>
+      <button data-walk="left" class="sim-left" aria-label="Move left">◀</button>
+      <button data-walk="down" class="sim-down" aria-label="Move down">▼</button>
+      <button data-walk="right" class="sim-right" aria-label="Move right">▶</button>
+    </div>
+    <div class="sim-actions"><button id="simAction">ACTION</button><button id="simExit">✕ EXIT</button></div>
+  </div>
+ </div>
+ <div class="canvas-bottom-right"><button id="simulateMobile" class="mobile-action" title="Test player movement">▶ PLAY</button><button id="safePreviewMobile" class="mobile-action" title="Force CPU isometric preview">▣ Safe 2D</button><button id="mobileAssets" class="mobile-action">▣ Assets</button><button id="mobileInspector" class="mobile-action">☷ Properties</button><button id="cameraReset" title="Reset camera">⌂</button></div>
           <div id="floatingStatus" class="floating-status" role="status"></div>
         </main>
         <div class="canvas-toolbar">
@@ -72,11 +85,12 @@ window.addEventListener('unhandledrejection',function(e){
             <option value="custom">CUSTOM Y</option>
           </select></label>
           <label class="tiny-control">Y <input type="number" id="placementY" value="0" min="-32" max="160" step=".25" disabled /></label>
-          <label class="tiny-control">GRID <select id="gridSize"><option value=".5">0.5</option><option value="1" selected>1</option><option value="2">2</option><option value="4">4</option></select></label>
-          <span class="version">◇ ISOMETRIC 2:1 · CAMERA LOCKED</span>
+          <label class="tiny-control grid-size-control">GRID <select id="gridSize"><option value=".5">0.5</option><option value="1" selected>1</option><option value="2">2</option><option value="4">4</option></select></label>
+          <div class="placement-rotation"><button id="rotatePlacementL" title="Rotate preview left">↶ 90°</button><span id="placementAngle">0°</span><button id="rotatePlacementR" title="Rotate preview right">90° ↷</button></div>
+ <span class="version">◇ ISOMETRIC 2:1 · CAMERA LOCKED</span>
           <span class="toolbar-space"></span>
           <button id="safePreview" title="Use CPU isometric preview if WebGL screen is black">▣ Safe 2D</button>
-          <button id="copyObject" title="Duplicate selected">⧉ Duplicate</button>
+          <button id="copyObject" title="Duplicate selected">⧉ Duplicate</button><span id="placementFeedback" class="placement-feedback" role="status">GRID ON · snap aktif</span>
         </div>
       </section>
       <aside class="inspector-panel" id="inspectorPanel" aria-label="Object inspector">
@@ -114,9 +128,9 @@ window.addEventListener('unhandledrejection',function(e){
             </div>
             <div class="inspector-pane" data-pane="textures" hidden>
               <div class="form-heading">MATERIAL / FACE MAPPING</div>
-              <p class="help-note">Replace each side independently. PNG, JPEG or WEBP files are embedded in the exported world JSON. For trees/characters, use one transparent plane image.</p>
+              <p class="help-note">Replace each side independently. PNG, JPEG or WEBP files are embedded in the exported world JSON. For trees use one transparent plane image; characters use Front/Right/Back/Left views.</p>
               <div id="faceRows"></div>
-              <p class="help-note">Orientation: FRONT = +Z, BACK = −Z, LEFT = −X, RIGHT = +X. Camera-facing planes automatically rotate toward the camera.</p>
+              <p class="help-note">Orientation: FRONT = +Z, BACK = −Z, LEFT = −X, RIGHT = +X. Trees billboard toward the camera; characters follow world rotation.</p>
             </div>
           </form>
         </div>
