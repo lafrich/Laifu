@@ -1,6 +1,7 @@
 import {add,mul,lookAt,ortho,multiply,transformPoint,rayFromViewport,clamp} from './math.js';
 import {ISO_YAW,ISO_PITCH} from './renderer.js';
 import {boxKind} from './world.js';
+import {surfaceType} from './placement.js';
 
 // CPU-only isometric fallback. Preserves X/Y/Z, object dimensions, and placement rays.
 export class CanvasIsoRenderer {
@@ -8,7 +9,7 @@ export class CanvasIsoRenderer {
   this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:false});
   if(!this.ctx)throw Error('Canvas 2D tidak tersedia');
   this.camera={target:[0,0,0],yaw:ISO_YAW,pitch:ISO_PITCH,distance:40,ortho:true};
-  this.gridOn=true;this.time=9;this.fallback=true;
+  this.gridOn=true;this.gridSize=1;this.time=9;this.fallback=true;
  }
  matrices(){
   const ratio=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.round(this.canvas.clientWidth*ratio)),h=Math.max(1,Math.round(this.canvas.clientHeight*ratio));
@@ -42,26 +43,52 @@ export class CanvasIsoRenderer {
   ]:[
     [[[-x,0,0],[x,0,0],[x,y,0],[-x,y,0]],1]
   ];
-  return groups.map(([coords,brightness])=>{
+  return groups.map(([coords,brightness],index)=>{
    const verts=coords.map(v=>this.point(o,...v));
    const center=verts.reduce((a,v)=>add(a,v),[0,0,0]).map(v=>v/4);
    const distance=(center[0]-this.eye[0])**2+(center[1]-this.eye[1])**2+(center[2]-this.eye[2])**2;
-   return {verts,distance,fill:this.shade(o.color,brightness),stroke:selected?'#ffd34a':'rgba(20,45,55,.17)',alpha:ghost?.42:(o.alpha??1),plane:!boxKind(o.kind),kind:o.kind};
+   return {verts,distance,fill:this.shade(o.color,brightness),stroke:selected?'#ffd34a':'rgba(20,45,55,.17)',alpha:ghost?.42:(o.alpha??1),plane:!boxKind(o.kind),kind:o.kind,terrainTop:index===4&&surfaceType(o)?o:null};
   });
+ }
+ drawTileGrid(tile){
+  const ctx=this.ctx,step=Math.max(.25,this.gridSize||1);
+  const x=tile.width/2,z=tile.depth/2,y=tile.height+.02;
+  ctx.save();ctx.strokeStyle='rgba(23,68,83,.62)';ctx.lineWidth=1;
+  const line=(a,b)=>{const p=this.project(this.point(tile,...a)),q=this.project(this.point(tile,...b));ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();};
+  for(let i=0;i<=Math.ceil(tile.width/step);i++){
+   const lx=Math.min(x,-x+i*step);line([lx,y,-z],[lx,y,z]);
+  }
+  for(let i=0;i<=Math.ceil(tile.depth/step);i++){
+   const lz=Math.min(z,-z+i*step);line([-x,y,lz],[x,y,lz]);
+  }
+  ctx.restore();
+ }
+ drawZebraStripes(tile){
+  if(tile.preset!=='zebra')return;
+  const x=tile.width/2,z=tile.depth/2,h=tile.height+.015;
+  for(let l=-z+.14;l<z-.08;l+=.46){
+   const r=Math.min(z-.08,l+.24);
+   const poly=[[-x+.1,h,l],[x-.1,h,l],[x-.1,h,r],[-x+.1,h,r]].map(p=>this.point(tile,...p));
+   this.path(poly,'#f6f7f3',null,.99);
+  }
  }
  render(objects,selectedId,ghost){
   this.matrices();const ctx=this.ctx,w=this.canvas.width,h=this.canvas.height;
   ctx.fillStyle='#bed3dd';ctx.fillRect(0,0,w,h);
   this.path([[-80,-.03,-80],[80,-.03,-80],[80,-.03,80],[-80,-.03,80]],'#d1dfd0');
-  if(this.gridOn){ctx.save();ctx.strokeStyle='rgba(54,85,96,.22)';ctx.lineWidth=1;
-   for(let i=-36;i<=36;i+=2){for(const [a,b] of [[[i,.02,-36],[i,.02,36]],[[-36,.02,i],[36,.02,i]]]){const p=this.project(a),q=this.project(b);ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();}}
+  if(this.gridOn){ctx.save();ctx.strokeStyle='rgba(54,85,96,.62)';ctx.lineWidth=1;
+   for(let i=-36;i<=36;i+=Math.max(.25,this.gridSize||1)){for(const [a,b] of [[[i,.02,-36],[i,.02,36]],[[-36,.02,i],[36,.02,i]]]){const p=this.project(a),q=this.project(b);ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();}}
    ctx.restore();
   }
   const polygons=objects.flatMap(o=>this.faces(o,o.id===selectedId));
   if(ghost)polygons.push(...this.faces(ghost,false,true));
   polygons.sort((a,b)=>b.distance-a.distance);
   for(const f of polygons){
-   this.path(f.verts,f.fill,f.stroke,f.alpha);
+   this.path(f.verts,f.terrainTop?.preset==='zebra'?'#52636e':f.fill,f.stroke,f.alpha);
+   if(f.terrainTop){
+    this.drawZebraStripes(f.terrainTop);
+    if(this.gridOn)this.drawTileGrid(f.terrainTop);
+   }
    if(f.plane){
     const p=f.verts.map(v=>this.project(v)),centerX=(p[0][0]+p[1][0])/2,baseY=(p[0][1]+p[1][1])/2,topY=(p[2][1]+p[3][1])/2;
     const height=Math.max(8,Math.abs(baseY-topY));
