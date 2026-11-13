@@ -228,27 +228,52 @@ function replaceSelected(){
  capture();const i=world.objects.indexOf(old);world.objects[i]=checked.object;
  commit();notify('Replaced · zoning and collisions validated');
 }
-function editProperty(key,value){const o=getSelected();if(!o)return;if(o.lock&&['x','y','z','levelMode'].includes(key)){notify('Unlock object before moving it');renderInspector();return;}
- capture();
+function editProperty(key,value){
+ const o=getSelected();if(!o)return;
+ if(o.lock&&['x','y','z','levelMode'].includes(key)){
+  notify('Unlock object before moving it');renderInspector();return;
+ }
+ const draft=structuredClone(o);
  if(['x','y','z','width','height','depth','rotation','alpha'].includes(key)){
-  const number=finite(value,o[key]);if(['x','y','z'].includes(key)){o[key]=round(clamp(number,-500,500));if(key==='y')o.levelMode='custom';}
-  else if(key==='height')o.height=o.kind==='character'?CHARACTER_HEIGHT:round(clamp(number,o.kind==='building'?MIN_BUILDING_HEIGHT:.04,150));
-  else if(['width','depth'].includes(key))o[key]=round(clamp(number,.03,150));
-  else if(key==='alpha')o.alpha=round(clamp(number,.15,1));
-  else o.rotation=((round(number)%360)+360)%360;
+  const n=finite(value,o[key]);
+  if(['x','y','z'].includes(key)){
+   draft[key]=round(clamp(n,-500,500));
+   if(key==='y')draft.levelMode='custom';
+  }else if(key==='height'){
+   draft.height=o.kind==='character'?CHARACTER_HEIGHT:
+    round(clamp(n,o.kind==='building'?MIN_BUILDING_HEIGHT:.04,150));
+  }else if(['width','depth'].includes(key)){
+   draft[key]=round(clamp(n,.03,150));
+  }else if(key==='alpha')draft.alpha=round(clamp(n,.15,1));
+  else draft.rotation=((round(n)%360)+360)%360;
  }else if(key==='levelMode'){
-  if(value==='land'){o.y=0;o.level=0;o.levelMode='land';}
+  if(value==='land'){draft.y=0;draft.level=0;draft.levelMode='land';}
   else if(value==='surface'){
-   const point=surfaceAt({origin:[o.x,600,o.z],direction:[0,-1,0]},world.objects,o.id);
-   o.y=point?.y??0;o.level=0;o.levelMode=point?.supportId?'surface':'land';
-  }else if(value.startsWith('level:')){o.level=clamp(Number(value.split(':')[1]),0,MAX_LEVEL);o.y=levelY(o.level);o.levelMode='level';}
-  else{o.levelMode='custom';o.level=0;}
- }else if(['tags','actions'].includes(key))o[key]=value.split(',').map(t=>t.trim()).filter(Boolean).slice(0,20);
- else if(['blocking','lock'].includes(key))o[key]=!!value;
- else if(key==='name')o.name=String(value).slice(0,100)||o.name;
- else if(key==='color'&&/^#[0-9a-f]{6}$/i.test(value))o.color=value;
- else if(key==='notes')o.notes=String(value).slice(0,2000);
- commit();
+   const hit=surfaceAt({origin:[o.x,600,o.z],direction:[0,-1,0]},world.objects,o.id);
+   draft.y=hit?.y??0;draft.level=0;
+   draft.levelMode=hit?.supportId?'surface':'land';
+  }else if(value.startsWith('level:')){
+   draft.level=clamp(Number(value.split(':')[1]),0,MAX_LEVEL);
+   draft.y=levelY(draft.level);draft.levelMode='level';
+  }else{draft.levelMode='custom';draft.level=0;}
+ }else if(['tags','actions'].includes(key)){
+  draft[key]=String(value).split(',').map(t=>t.trim()).filter(Boolean).slice(0,20);
+ }else if(['blocking','lock'].includes(key))draft[key]=!!value;
+ else if(key==='name')draft.name=String(value).slice(0,100)||o.name;
+ else if(key==='color'&&/^#[0-9a-f]{6}$/i.test(value))draft.color=value;
+ else if(key==='notes')draft.notes=String(value).slice(0,2000);
+ const physical=['x','y','z','width','height','depth','rotation','levelMode'].includes(key);
+ if(physical){
+  const base=Math.floor(Math.max(0,draft.y)/LEVEL_STEP)*LEVEL_STEP;
+  const validated=tryCandidate(draft,base,o.id);
+  if(!validated.ok){
+   placementMessage(validated.reason,false);
+   notify('CHANGE DENIED · '+validated.reason);renderInspector();return;
+  }
+  Object.assign(draft,validated.object);
+ }
+ capture();Object.assign(o,draft);commit();
+ if(physical)placementMessage('✓ Snap & collision validated',true);
 }
 function setLevelControl(){const v=$('placementLevel').value;$('placementY').disabled=v!=='custom';
  if(v.startsWith('level:')){const y=levelY(+v.split(':')[1]);renderer.camera.target[1]=y;notify(`DROP HEIGHT · L${v.split(':')[1]} · Y ${y}`);}
