@@ -124,39 +124,110 @@ function renderFaceRows(){const o=getSelected();const root=$('faceRows');root.re
   url.addEventListener('change',()=>{const v=url.value.trim();if(v&&!/^https?:\/\//i.test(v)){notify('Use a valid http/https image URL');return;}capture();if(v)o.textures[face]=v;else delete o.textures[face];commit();});row.append(url);root.append(row);
  }
 }
-function makePlacement(clientX,clientY,ignore=null){const ray=renderer.screenRay(clientX,clientY);if(!ray)return null;
+function makePlacement(clientX,clientY,ignore=null,preset=activePreset){
+ const ray=renderer.screenRay(clientX,clientY);if(!ray)return null;
  const levelMode=$('placementLevel').value,customY=finite($('placementY').value);
  const elev=heightForPlacement(levelMode,customY,ray,world.objects,ignore);
+ const source=ignore?world.objects.find(o=>o.id===ignore):makeObject(preset);
  let point=levelMode==='surface'?surfaceAt(ray,world.objects,ignore):intersectPlane(ray,elev.y);
+ // Place on the clicked road/sidewalk/grass top rather than an unseen ground point.
+ if(source&&!isSurface(source)&&levelMode==='land'){
+  const hit=surfaceAt(ray,world.objects,ignore);
+  if(hit&&hit.y>=0&&hit.y<LEVEL_STEP)point=hit;
+ }
  if(!point)return null;
- const step=snapOn?world.grid:0;
- const x=step?snap(point.x,step):round(point.x),z=step?snap(point.z,step):round(point.z);
- return {x,y:elev.y,z,levelMode:elev.mode,level:elev.level,point};
+ const levelBase=levelMode==='surface'?
+  Math.floor(Math.max(0,point.y)/LEVEL_STEP)*LEVEL_STEP:
+  (levelMode==='land'?0:elev.y);
+ return {x:point.x,z:point.z,y:elev.y,levelBase,
+  levelMode:elev.mode,level:elev.level,point};
 }
-function hoverPosition(clientX,clientY){const p=makePlacement(clientX,clientY,selectedId);if(!p){ghost=null;return;}
- $('coordinates').textContent=`X ${p.x.toFixed(2)} · Y ${p.y.toFixed(2)} · Z ${p.z.toFixed(2)}`;
- if(mode==='place'){const o=makeObject(activePreset,p.x,p.z,p.y);o.levelMode=p.levelMode;o.level=p.level;ghost=o;}else ghost=null;
+function candidateForPlacement(p){
+ const o=makeObject(activePreset,p.x,p.z,p.y);
+ o.rotation=placementRotation;o.levelMode=p.levelMode;o.level=p.level;
+ return o;
 }
-function placeAt(x,y){if(world.objects.length>=MAX_OBJECTS){notify('World limit reached');return;}
- const p=makePlacement(x,y);if(!p){notify('Camera ray did not reach the selected plane. Try fitting the camera.');return;}
- capture();const o=makeObject(activePreset,p.x,p.z,p.y);o.levelMode=p.levelMode;o.level=p.level;world.objects.push(o);selectedId=o.id;
- commit();notify(`Placed ${o.kind.toUpperCase()} at Y ${o.y}`);
+function tryCandidate(obj,levelBase,ignoreId=null,snapping=snapOn){
+ return evaluatePlacement(obj,world.objects,{
+  grid:world.grid,snapEnabled:snapping,ignoreId,levelBase
+ });
 }
-function getRayHit(clientX,clientY){const ray=renderer.screenRay(clientX,clientY);return ray?pickEntity(ray,world.objects,renderer.camera.yaw):null;}
-function moveDrag(x,y){const o=getSelected();if(!o||o.lock)return;
- const ray=renderer.screenRay(x,y);const p=intersectPlane(ray,o.y);if(!p)return;
+function hoverPosition(clientX,clientY){
+ if(simulating)return;
+ const p=makePlacement(clientX,clientY,selectedId);
+ if(!p){ghost=null;return;}
+ $('coordinates').textContent='X '+p.x.toFixed(2)+' · Y '+p.y.toFixed(2)+' · Z '+p.z.toFixed(2);
+ if(mode==='place'){
+  const result=tryCandidate(candidateForPlacement(p),p.levelBase);
+  ghost={...result.object,color:result.ok?'#72cdb3':'#ec666d',alpha:.7};
+  placementMessage(result.ok?'✓ GRID SNAP · '+(surfaceType(result.object)||result.object.kind):result.reason,result.ok);
+ }else ghost=null;
+}
+function placeAt(x,y){
+ if(world.objects.length>=MAX_OBJECTS){notify('World limit reached');return;}
+ const p=makePlacement(x,y);
+ if(!p){notify('Tidak ada permukaan pada ketinggian ini.');return;}
+ const result=tryCandidate(candidateForPlacement(p),p.levelBase);
+ placementMessage(result.ok?'✓ Placement valid':result.reason,result.ok);
+ if(!result.ok){notify('PLACE DENIED · '+result.reason);return;}
+ capture();world.objects.push(result.object);selectedId=result.object.id;
+ commit();notify('SNAPPED · '+result.object.preset.toUpperCase()+' · Y '+result.object.y);
+}
+function getRayHit(clientX,clientY){
+ const ray=renderer.screenRay(clientX,clientY);
+ return ray?pickEntity(ray,world.objects,renderer.camera.yaw):null;
+}
+function moveDrag(x,y){
+ const o=getSelected();if(!o||o.lock)return;
+ const ray=renderer.screenRay(x,y),p=intersectPlane(ray,o.y);if(!p)return;
+ const candidate={...o,x:p.x,z:p.z};
+ const levelBase=Math.floor(Math.max(0,o.y)/LEVEL_STEP)*LEVEL_STEP;
+ const result=tryCandidate(candidate,levelBase,o.id);
+ if(!result.ok){placementMessage(result.reason,false);return;}
  if(!dragging){capture();dragging=true;}
- o.x=snapOn?snap(p.x,world.grid):round(p.x);o.z=snapOn?snap(p.z,world.grid):round(p.z);
- $('coordinates').textContent=`X ${o.x} · Y ${o.y} · Z ${o.z}`;
+ Object.assign(o,result.object);placementMessage('✓ MOVING · COLLISION CLEAR',true);
+ $('coordinates').textContent='X '+o.x+' · Y '+o.y+' · Z '+o.z;
 }
-function duplicate(){const o=getSelected();if(!o)return;if(world.objects.length>=MAX_OBJECTS){notify('World limit reached');return;}
- capture();const clone=structuredClone(o);clone.id=uid();clone.name=`${o.name} COPY`;clone.x=round(clone.x+world.grid);clone.z=round(clone.z+world.grid);world.objects.push(clone);selectedId=clone.id;commit();notify('Object duplicated');}
-function changeObject(fn){const o=getSelected();if(!o)return;if(o.lock&&fn.name==='position')return;capture();fn(o);commit();}
-function rotate(d){changeObject(o=>{o.rotation=((o.rotation+d)%360+360)%360;});}
-function removeSelected(){const o=getSelected();if(!o)return;capture();world.objects=world.objects.filter(x=>x.id!==o.id);selectedId=null;commit();notify('Object deleted');}
-function replaceSelected(){const old=getSelected();if(!old)return;
- capture();const fresh=makeObject(activePreset,old.x,old.z,old.y);fresh.id=old.id;fresh.rotation=old.rotation;fresh.name=templates[activePreset].label;fresh.levelMode=old.levelMode;fresh.level=old.level;fresh.tags=[...old.tags];fresh.actions=[...old.actions];fresh.notes=old.notes;
- const i=world.objects.indexOf(old);world.objects[i]=fresh;commit();notify('Replaced geometry · position preserved');}
+function duplicate(){
+ const o=getSelected();if(!o||world.objects.length>=MAX_OBJECTS)return;
+ const step=Math.max(world.grid,.5),sx=Math.ceil(o.width/step)*step,sz=Math.ceil(o.depth/step)*step;
+ const directions=[[sx,0],[-sx,0],[0,sz],[0,-sz],[sx,sz],[-sx,sz],[sx,-sz],[-sx,-sz]];
+ for(const [dx,dz]of directions){
+  const clone={...structuredClone(o),id:uid(),name:o.name+' COPY',x:o.x+dx,z:o.z+dz};
+  const result=tryCandidate(clone,Math.floor(o.y/LEVEL_STEP)*LEVEL_STEP);
+  if(result.ok){capture();world.objects.push(result.object);selectedId=result.object.id;commit();notify('Duplicated in free snap cell');return;}
+ }
+ notify('Tidak ada grid kosong yang sesuai di sekitar objek.');
+}
+function rotate(d){
+ const o=getSelected();if(!o)return;
+ if(o.lock){notify('Objek sedang dikunci.');return;}
+ const candidate={...o,rotation:((o.rotation+d)%360+360)%360};
+ const check=tryCandidate(candidate,Math.floor(o.y/LEVEL_STEP)*LEVEL_STEP,o.id);
+ if(!check.ok){placementMessage(check.reason,false);notify(check.reason);return;}
+ capture();Object.assign(o,check.object);commit();placementMessage('✓ ROTATION CLEAR',true);
+}
+function rotatePlacement(d){
+ placementRotation=((placementRotation+d)%360+360)%360;
+ updatePlacementRotation();
+ placementMessage('PREVIEW ROTATION '+placementRotation+'° · snapping active',null);
+}
+function removeSelected(){
+ const o=getSelected();if(!o)return;
+ capture();world.objects=world.objects.filter(x=>x.id!==o.id);
+ selectedId=null;commit();notify('Object deleted');
+}
+function replaceSelected(){
+ const old=getSelected();if(!old)return;
+ const fresh=makeObject(activePreset,old.x,old.z,old.y);
+ fresh.id=old.id;fresh.rotation=old.rotation;fresh.name=templates[activePreset].label;
+ fresh.levelMode=old.levelMode;fresh.level=old.level;
+ fresh.tags=[...old.tags];fresh.actions=[...old.actions];fresh.notes=old.notes;
+ const checked=tryCandidate(fresh,Math.floor(old.y/LEVEL_STEP)*LEVEL_STEP,old.id);
+ if(!checked.ok){placementMessage(checked.reason,false);notify(checked.reason);return;}
+ capture();const i=world.objects.indexOf(old);world.objects[i]=checked.object;
+ commit();notify('Replaced · zoning and collisions validated');
+}
 function editProperty(key,value){const o=getSelected();if(!o)return;if(o.lock&&['x','y','z','levelMode'].includes(key)){notify('Unlock object before moving it');renderInspector();return;}
  capture();
  if(['x','y','z','width','height','depth','rotation','alpha'].includes(key)){
