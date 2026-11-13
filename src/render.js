@@ -1,11 +1,17 @@
 import {FRAME} from './constants.js';
 import {resolveSkinColor,normalizeSkinKey} from './skin.js';
+import {drawEmotionFrame} from './emotion.js';
 const partCache=new WeakMap();
 export const invalidatePart=(part)=>partCache.delete(part);
 export function partBitmap(part,skinKey){const sig=JSON.stringify(normalizeSkinKey(skinKey));const cached=partCache.get(part);if(cached?.sig===sig)return cached.canvas;const c=document.createElement('canvas');c.width=FRAME.width;c.height=FRAME.height;const ctx=c.getContext('2d');for(const [k,color]of Object.entries(part.pixels)){const [x,y]=k.split(',').map(Number);ctx.fillStyle=resolveSkinColor(color,skinKey);ctx.fillRect(x,y,1,1);}partCache.set(part,{sig,canvas:c});return c;}
 export function applyPartTransform(ctx,part,parts,extraAngles={}){const chain=[],byId=Object.fromEntries(parts.map(p=>[p.id,p]));let current=part;while(current){chain.unshift(current);current=byId[current.parent];if(chain.length>parts.length)break;}
  for(const p of chain){ctx.translate(p.pivot[0]+(p.offset?.[0]||0),p.pivot[1]+(p.offset?.[1]||0));ctx.rotate(((p.angle||0)+(extraAngles[p.id]||0))*Math.PI/180);ctx.translate(-p.pivot[0],-p.pivot[1]);}}
 export function renderCharacter(character,view='front',extraAngles={}){const c=document.createElement('canvas');c.width=FRAME.width;c.height=FRAME.height;const ctx=c.getContext('2d',{willReadFrequently:true});ctx.imageSmoothingEnabled=false;drawCharacter(ctx,character,view,extraAngles);return c;}
-export function drawCharacter(ctx,character,view,extraAngles={}){const parts=character.views[view].parts;const sorted=[...parts].sort((a,b)=>a.z-b.z);ctx.imageSmoothingEnabled=false;for(const p of sorted){if(!p.visible)continue;ctx.save();applyPartTransform(ctx,p,parts,extraAngles);ctx.drawImage(partBitmap(p,character.skinKey),0,0);ctx.restore();}}
+export function drawCharacter(ctx,character,view,extraAngles={}){const parts=character.views[view].parts;const sorted=[...parts].sort((a,b)=>a.z-b.z);ctx.imageSmoothingEnabled=false;for(const p of sorted){if(!p.visible)continue;ctx.save();applyPartTransform(ctx,p,parts,extraAngles);ctx.drawImage(partBitmap(p,character.skinKey),0,0);ctx.restore();}
+ if(character.faceOverlay){
+  const head=parts.find(p=>p.id==='head');
+  if(head&&head.visible){ctx.save();applyPartTransform(ctx,head,parts,extraAngles);drawEmotionFrame(ctx,character.faceOverlay,view,character.faceFrame||0);ctx.restore();}
+ }
+}
 export function alphaBounds(canvas){const {width,height}=canvas;const data=canvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,width,height).data;let x0=width,y0=height,x1=-1,y1=-1;for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(data[(y*width+x)*4+3]){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);}if(x1<0)return {x:0,y:0,width:1,height:1};return {x:x0,y:y0,width:x1-x0+1,height:y1-y0+1};}
 export function croppedSprite(canvas){const b=alphaBounds(canvas),c=document.createElement('canvas');c.width=b.width;c.height=b.height;c.getContext('2d').drawImage(canvas,b.x,b.y,b.width,b.height,0,0,b.width,b.height);return {canvas:c,bounds:b};}
