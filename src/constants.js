@@ -17,7 +17,5 @@ export const PARTS=[
  {id:'upperArmR',label:'Lengan atas R',parent:'torso',pivot:[41,45],z:7},
  {id:'forearmR',label:'Lengan bawah R',parent:'upperArmR',pivot:[45,58],z:7},
  {id:'handR',label:'Tangan R',parent:'forearmR',pivot:[46,71],z:7},
- {id:'head',label:'Kepala',parent:'torso',pivot:[32,40],z:8},
- {id:'face',label:'Wajah',parent:'head',pivot:[32,31],z:9},
- {id:'hair',label:'Rambut',parent:'head',pivot:[32,25],z:10}
+ {id:'head',label:'Kepala polos',parent:'torso',pivot:[32,40],z:8}
 ];

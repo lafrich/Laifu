@@ -35,3 +35,8 @@ test('left/right are real anatomical profiles with mirrored direction-specific p
    assert.equal(leftPixels[`${FRAME.width-1-x},${y}`],color);
  }
 });
+
+test('Genesis has head rig but face and hair are independently edited outside body rig',()=>{
+ const c=createGenesis();assert.equal(PARTS.length,15);
+ for(const v of VIEWS){assert.equal(c.views[v].parts.length,15);assert.ok(c.views[v].parts.some(p=>p.id==='head'));assert.ok(!c.views[v].parts.some(p=>['face','hair'].includes(p.id)));}
+});

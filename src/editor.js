@@ -3,6 +3,7 @@ import {FRAME,VIEWS,PARTS,PALETTE,LAIFU_SCALE} from './constants.js';
 import {createGenesis,getPart,putPixel,fillPixel,shiftPixels,flipPixels,sampleAngles} from './model.js';
 import {drawCharacter,invalidatePart,applyPartTransform} from './render.js';
 import {exportPackage,loadCharacterFile} from './format.js';
+import {DEFAULT_SKIN_KEY,SKIN_TOKENS,SKIN_PRESETS,resolveSkinColor,normalizeSkinKey} from './skin.js';
 let character=createGenesis(),view='front',selected='torso',tool='pencil',color=PALETTE[0],zoom=5,grid=true,bones=true,playing=false,anim='idle',frame=0,drag=null,clipboard=null,selection=null,dirty=false;
 let history=[JSON.stringify(character)],historyAt=0,lastTime=0,lastTick=0;
 const $=s=>document.querySelector(s);
@@ -20,9 +21,9 @@ app.innerHTML=`<div class="app">
  <div class="workspace">
   <aside class="sidebar"><div class="section-title">GENESIS TEMPLATE <span class="tag">BASE 01</span></div>
     <div class="stack"><label class="field">Nama karakter <input id="char-name" value="Genesis 01" maxlength="60"></label><label class="field">Kategori Genesis<select id="category"><option value="male">Male Genesis</option><option value="female">Female Genesis</option></select></label></div>
-    <div class="section-title">BODY PARTS <span id="part-count">17</span></div><div id="parts" class="parts"></div>
+    <div class="section-title">BODY PARTS <span id="part-count">15</span></div><div id="parts" class="parts"></div>
     <div class="hr"></div><div class="section-title">ATURAN SKALA LAIFU</div><div class="summary-box">Karakter = <b>1 pintu = 2 unit</b><br>1 level = <b>4 unit (2 pintu)</b><br>Bangunan terkecil = <b>4 unit</b><br>Foot pivot = <b>Y 0 di map</b></div>
-    <p class="notice">Satu template dasar. Male/Female adalah kategori ekspor; pixel tiap bagian bisa disesuaikan sendiri.</p>
+    <p class="notice">Genesis = body + kepala polos (15 part). Wajah ditambahkan melalui Laifu Emosi; rambut nanti jadi aset terpisah.</p>
   </aside>
   <main class="stage"><div class="toolbar" id="tools">
     <button class="tool active" data-tool="pencil" title="Brush · B">✎ Brush</button><button class="tool" data-tool="eraser" title="Eraser · E">◇ Erase</button><button class="tool" data-tool="fill" title="Fill · G">▧ Fill</button><button class="tool" data-tool="select" title="Select · S">▣ Select</button><button class="tool" data-tool="move" title="Move · M">✥ Move</button><button class="tool" data-tool="pivot" title="Pivot · P">⊙ Pivot</button><button class="tool" data-tool="rotate" title="Rotate · R">⟳ Rotate</button><span class="separator"></span>
@@ -32,24 +33,51 @@ app.innerHTML=`<div class="app">
   <div class="viewbar"><div class="views" id="views"></div><div class="row"><label class="toggle"><input type="checkbox" id="show-grid" checked> Grid</label><label class="toggle"><input type="checkbox" id="show-bones" checked> Pivot / Bones</label><button id="zoomout" class="btn small-btn">−</button><span id="zoom-value">500%</span><button id="zoomin" class="btn small-btn">+</button></div></div>
   <div class="viewbar"><div class="row"><label class="field" style="max-width:110px">Preview pose<select id="animation"><option value="idle">Idle</option><option value="walk">Walk</option><option value="sit">Sit</option></select></label><button id="play" class="btn small-btn">▶ Play</button><label class="field">Frame <input type="range" id="frame" min="0" max="12" value="0"></label><span id="frame-label" class="value">0</span></div><span>Setup pixels per-view · rig pose preview</span></div>
   </main>
-  <aside class="sidebar right"><div class="section-title">COLOR PALETTE</div><div id="palette" class="palette"></div><div class="row" style="margin-top:10px"><label class="field">Warna custom <input id="color" type="color" value="${color}" style="min-height:34px;padding:3px"></label><span id="color-label" class="status">${color}</span></div>
+  <aside class="sidebar right"><div class="section-title">SKIN KEY · 3 TONES</div>
+    <div class="stack" id="skinKeyEditor">
+      <label class="field">Skin preset<select id="skinPreset"><option value="custom">Custom</option><option value="natural">Natural</option><option value="fair">Fair</option><option value="medium">Medium</option><option value="tan">Tan</option><option value="deep">Deep</option></select></label>
+      <div class="inspector-fields">
+        <label class="field">BASE<input type="color" data-skin="base"></label>
+        <label class="field">LIGHT<input type="color" data-skin="light"></label>
+        <label class="field">SHADOW<input type="color" data-skin="shadow"></label>
+      </div>
+      <p class="notice">Pilih Skin Base / Light / Shadow dari palette lalu lukis. Mengubah tiga warna ini otomatis mengganti semua arah dan body part tanpa mengubah pixel, pivot, atau rig.</p>
+    </div>
+    <div class="section-title">COLOR PALETTE</div><div id="palette" class="palette"></div><div class="row" style="margin-top:10px"><label class="field">Warna custom <input id="color" type="color" value="${color}" style="min-height:34px;padding:3px"></label><span id="color-label" class="status">${color}</span></div>
    <div class="section-title">PART INSPECTOR</div><div class="title-row"><h2 id="selected-name">Torso</h2><span class="tag" id="selected-id">torso</span></div>
    <div class="stack" style="margin-top:13px"><label class="toggle"><input id="part-visible" type="checkbox" checked> Visible</label><label class="toggle"><input id="part-locked" type="checkbox"> Lock pixel editor</label>
     <div class="inspector-fields"><label class="field">Pivot X<input id="pivot-x" type="number" step="1"></label><label class="field">Pivot Y<input id="pivot-y" type="number" step="1"></label><label class="field">Offset X<input id="offset-x" type="number" step="1"></label><label class="field">Offset Y<input id="offset-y" type="number" step="1"></label></div>
     <label class="field">Bone rotation <div class="row"><input class="range" id="angle" type="range" min="-180" max="180" value="0"><input id="angle-num" type="number" min="-180" max="180" step="1" style="width:66px"></div></label>
     <div class="row"><button id="reset-transform" class="btn">Reset transform</button><button id="clear-part" class="btn danger">Clear pixels</button></div></div>
    <div class="section-title">EXPORT CONTRACT</div><div class="summary-box">Format <b>laifu.character.v1</b><br>Views <b>Front · Left · Right · Back</b><br>16-bit? <b>No, RGBA PNG</b><br>Plane <b>billboard, transparent</b><br>Height <b>1 door</b><br>Save mode <b>manual only</b></div>
-   <p class="notice">Hasil ZIP: <b>character.json</b> (semua layer + bones), PNG setiap view, dan PNG cropped. Tidak ada autosave / Drive sync.</p>
-   <a class="btn" style="display:block;text-align:center;text-decoration:none" href="../laifu-map/">Buka Laifu Map Test ↗</a>
+   <p class="notice">Hasil ZIP: <b>character.json</b> (skinKey + rig tanpa face/hair), PNG per-view & PNG cropped. File karakter lama akan menyimpan face/hair sebelumnya dalam backup nonaktif.</p><a class="btn" style="display:block;text-align:center;text-decoration:none;margin-bottom:9px" href="../laifu-emosi/">Buka LAIFU EMOSI · Face Editor ↗</a>
+   <a class="btn" style="display:block;text-align:center;text-decoration:none" href="../laifu-map/">Buka Laifu Map ↗</a>
   </aside>
- </div><footer class="footer">LAIFU / Character v0.1 · Rigby2D-inspired skeletal parts + slots · File eksport adalah sumber desain · Ctrl+Z Undo / Ctrl+Y Redo</footer>
+ </div><footer class="footer">LAIFU / Character v0.1 · 15-part Genesis · semantic Skin Key · detached face/hair · File eksport adalah sumber desain · Ctrl+Z Undo / Ctrl+Y Redo</footer>
 </div>`;
 const cv=$('#pixel-canvas');let pan={x:0,y:0},spaceDown=false;
 function buildPartList(){const el=$('#parts');el.innerHTML='';for(const def of PARTS){const p=getPart(character,view,def.id);const row=document.createElement('div');row.className='part'+(selected===p.id?' selected':'');row.innerHTML=`<button type="button" class="eye btn ghost" title="Toggle visibility">${p.visible?'◉':'○'}</button><span>${p.label}</span><small>${Object.keys(p.pixels).length}px</small>`;row.addEventListener('click',e=>{if(e.target.closest('.eye')){p.visible=!p.visible;pushHistory();}else{selected=p.id;selection=null;}buildPartList();updateInspector();render();});el.append(row);}}
 function updateInspector(){const p=part();$('#selected-name').textContent=p.label;$('#selected-id').textContent=p.id;for(const [id,val] of [['pivot-x',p.pivot[0]],['pivot-y',p.pivot[1]],['offset-x',p.offset[0]],['offset-y',p.offset[1]],['angle',p.angle],['angle-num',p.angle]])$('#'+id).value=val;$('#part-visible').checked=p.visible;$('#part-locked').checked=p.locked;$('#part-count').textContent=PARTS.length;$('#undo').disabled=historyAt<=0;$('#redo').disabled=historyAt>=history.length-1;}
-function syncFields(){$('#char-name').value=character.name;$('#category').value=character.genesis;buildPartList();updateInspector();}
+function syncSkinFields(){const slots=normalizeSkinKey(character.skinKey);character.skinKey=slots;
+  for(const slot of ['base','light','shadow']){const el=document.querySelector('[data-skin="'+slot+'"]');if(el)el.value=slots[slot];}
+  const found=Object.entries(SKIN_PRESETS).find(([,v])=>Object.keys(v).every(k=>v[k]===slots[k]));
+  $('#skinPreset').value=found?.[0]||'custom';
+}
+function syncFields(){$('#char-name').value=character.name;$('#category').value=character.genesis;syncSkinFields();buildPalette();buildPartList();updateInspector();}
 function buildViews(){$('#views').innerHTML='';for(const v of VIEWS){const b=document.createElement('button');b.className='btn small-btn'+(view===v?' active':'');b.textContent=v.charAt(0).toUpperCase()+v.slice(1);b.onclick=()=>{view=v;selection=null;buildViews();buildPartList();updateInspector();render();};$('#views').append(b);}}
-function buildPalette(){$('#palette').innerHTML='';for(const c of PALETTE){const b=document.createElement('button');b.className='swatch'+(c===color?' active':'');b.style.background=c;b.title=c;b.setAttribute('aria-label','Warna '+c);b.onclick=()=>{color=c;$('#color').value=color;$('#color-label').textContent=color;buildPalette();};$('#palette').append(b);}}
+function buildPalette(){
+ $('#palette').innerHTML='';
+ for(const c of [...Object.values(SKIN_TOKENS),...PALETTE]){
+  const b=document.createElement('button');b.className='swatch'+(c===color?' active':'');
+  b.style.background=resolveSkinColor(c,character.skinKey);
+  b.title=c.startsWith('@skin/')?c.toUpperCase()+' (semantic skin key)':c;
+  b.setAttribute('aria-label','Warna '+c);
+  b.onclick=()=>{
+   color=c;$('#color').value=resolveSkinColor(color,character.skinKey);
+   $('#color-label').textContent=color;buildPalette();
+  };$('#palette').append(b);
+ }
+}
 function currentPoint(e){const r=cv.getBoundingClientRect();return {x:Math.floor((e.clientX-r.left)*FRAME.width/r.width),y:Math.floor((e.clientY-r.top)*FRAME.height/r.height)};}
 function setZoom(n){zoom=Math.min(10,Math.max(2,n));cv.width=FRAME.width*zoom;cv.height=FRAME.height*zoom;cv.style.width=cv.width+'px';cv.style.height=cv.height+'px';$('#zoom-value').textContent=zoom*100+'%';render();}
 function render(){if(!cv.isConnected)return;const ctx=cv.getContext('2d');ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);ctx.imageSmoothingEnabled=false;ctx.scale(zoom,zoom);
@@ -86,6 +114,19 @@ $('#undo').onclick=()=>restore(historyAt-1);$('#redo').onclick=()=>restore(histo
 $('#zoomout').onclick=()=>setZoom(zoom-1);$('#zoomin').onclick=()=>setZoom(zoom+1);
 $('#show-grid').onchange=e=>{grid=e.target.checked;render();};$('#show-bones').onchange=e=>{bones=e.target.checked;render();};
 $('#color').oninput=e=>{color=e.target.value;$('#color-label').textContent=color;buildPalette();};
+for(const el of document.querySelectorAll('[data-skin]')){
+ el.addEventListener('input',ev=>{
+  const slot=ev.target.dataset.skin;
+  character.skinKey[slot]=ev.target.value;$('#skinPreset').value='custom';
+  if(color===SKIN_TOKENS[slot])$('#color').value=ev.target.value;
+  markDirty();buildPalette();render();
+ });
+ el.addEventListener('change',()=>{pushHistory();render();});
+}
+$('#skinPreset').addEventListener('change',ev=>{
+ const selected=SKIN_PRESETS[ev.target.value];if(!selected)return;
+ character.skinKey={...selected};syncSkinFields();pushHistory();render();
+});
 $('#category').onchange=e=>{character.genesis=e.target.value;pushHistory();};
 $('#char-name').onchange=e=>{character.name=e.target.value||'Genesis';pushHistory();};
 for(const [id,field,index] of [['pivot-x','pivot',0],['pivot-y','pivot',1],['offset-x','offset',0],['offset-y','offset',1]])$('#'+id).onchange=e=>{const n=Number(e.target.value);if(Number.isFinite(n)){part()[field][index]=n;pushHistory();render();}};

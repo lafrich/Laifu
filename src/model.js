@@ -1,4 +1,5 @@
 import {FRAME,VIEWS,PARTS,PALETTE,LAIFU_SCALE} from './constants.js';
+import {SKIN_TOKENS,DEFAULT_SKIN_KEY,normalizeSkinKey,convertLegacySkinPixels} from './skin.js';
 const key=(x,y)=>`${x},${y}`;
 const partById=id=>PARTS.find(p=>p.id===id);
 export function createPart(def){return {id:def.id,label:def.label,parent:def.parent,pivot:[...def.pivot],angle:0,offset:[0,0],visible:true,locked:false,z:def.z,pixels:{}};}
@@ -13,14 +14,14 @@ function ellipse(p,cx,cy,rx,ry,col){for(let y=Math.floor(cy-ry);y<=cy+ry;y++)for
  * imported/exported character document.
  */
 function drawSideProfile(p,view){
- const skin='#d99b7a',light='#f4c6a6',shade='#9b614d';
+ const skin=SKIN_TOKENS.base,light=SKIN_TOKENS.light,shade=SKIN_TOKENS.shadow;
  const shirt='#46627a',highlight='#6f9baa',dark='#24364c';
  const trousers='#444866',shoe='#25273c';
  const near=view==='right'?'R':'L',far=view==='right'?'L':'R';
  const rig=(id,x,y,z)=>{p[id].pivot=[x,y];p[id].z=z;};
  // Absolute pivot coordinates are specific to this direction, not front-view.
  rig('pelvis',33,70,4);rig('torso',33,65,6);
- rig('head',32,41,8);rig('face',32,31,9);rig('hair',32,25,10);
+ rig('head',32,41,8);
  rig('thigh'+far,31,75,2);rig('calf'+far,31,89,2);rig('foot'+far,31,102,2);
  rig('thigh'+near,35,75,3);rig('calf'+near,35,89,3);rig('foot'+near,35,102,4);
  rig('upperArm'+far,31,48,5);rig('forearm'+far,31,59,5);rig('hand'+far,31,70,5);
@@ -30,11 +31,7 @@ function drawSideProfile(p,view){
  rect(p.head,39,33,41,36,skin); // nose profile
  rect(p.head,29,39,34,44,shade); // neck joins torso
  ellipse(p.head,34,27,3,5,light);
- rect(p.face,37,30,38,31,shoe);
- rect(p.face,40,36,41,37,shade);
- rect(p.hair,27,20,36,24,dark);
- rect(p.hair,25,24,28,34,dark);
- rect(p.hair,27,19,33,20,dark);
+ // Face features and hairstyle are assigned by Laifu Emosi / future Hair editor.
  rect(p.torso,28,44,38,66,shirt); // 11px profile vs 17px front
  rect(p.torso,37,48,40,54,shirt); // chest protrudes forward
  rect(p.torso,28,46,29,64,dark); // back shadow
@@ -73,12 +70,11 @@ function drawSideProfile(p,view){
  }
 }
 
-export function createGenesis(){const views={};for(const view of VIEWS){const parts=PARTS.map(createPart);const p=Object.fromEntries(parts.map(p=>[p.id,p]));const skin='#d99b7a',light='#f4c6a6',shade='#9b614d',shirt='#46627a',dark='#24364c',trousers='#444866',shoe='#25273c';
+export function createGenesis(){const views={};for(const view of VIEWS){const parts=PARTS.map(createPart);const p=Object.fromEntries(parts.map(p=>[p.id,p]));const skin=SKIN_TOKENS.base,light=SKIN_TOKENS.light,shade=SKIN_TOKENS.shadow,shirt='#46627a',dark='#24364c',trousers='#444866',shoe='#25273c';
  const profile=view==='left'||view==='right';const mid=32;
  if(profile){drawSideProfile(p,view);views[view]={parts};continue;}
  ellipse(p.head,mid,31,profile?7:9,11,skin);rect(p.head,mid-5,37,mid+5,42,shade);ellipse(p.head,mid-3,27,3,6,light);
- rect(p.hair,profile?mid-7:mid-9,20,profile?mid+6:mid+8,25,dark);rect(p.hair,mid-8,24,mid-6,31,dark);if(view==='back')rect(p.hair,mid-8,26,mid+8,33,dark);
- if(view==='front'){rect(p.face,28,31,29,32,'#25273c');rect(p.face,35,31,36,32,'#25273c');rect(p.face,31,37,34,37,shade);}else if(profile){const ex=view==='right'?36:27;rect(p.face,ex,31,ex+1,32,dark);rect(p.face,view==='right'?37:26,35,view==='right'?38:27,36,shade);}
+ // Base head is deliberately bald and faceless. Face/hair are separate assets.
  rect(p.torso,24,43,40,67,shirt);rect(p.torso,26,44,28,65,'#6f9baa');rect(p.torso,37,44,40,67,dark);rect(p.torso,29,42,35,44,skin);
  rect(p.pelvis,25,67,39,76,trousers);rect(p.pelvis,27,68,37,69,shoe);
  for(const [side,X,DX] of [['L',20,-1],['R',44,1]]){
@@ -91,11 +87,39 @@ export function createGenesis(){const views={};for(const view of VIEWS){const pa
  rect(p.footL,23,102,32,107,shoe);rect(p.footR,32,102,42,107,shoe);
  views[view]={parts};
  }
- return {format:'laifu.character.v1',name:'Genesis 01',genesis:'male',frame:{...FRAME},scale:{...LAIFU_SCALE},views,animations:{idle:[{frame:0,angles:{}}],walk:[{frame:0,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}},{frame:6,angles:{thighL:-19,thighR:19,calfL:0,calfR:8,upperArmL:14,upperArmR:-14}},{frame:12,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}}],sit:[{frame:0,angles:{thighL:-75,thighR:-75,calfL:85,calfR:85}}]},fps:12};
+ return {format:'laifu.character.v1',name:'Genesis 01',genesis:'male',skinKey:{...DEFAULT_SKIN_KEY},faceRef:null,appearance:{source:'separate-emotion-overlay'},frame:{...FRAME},scale:{...LAIFU_SCALE},views,animations:{idle:[{frame:0,angles:{}}],walk:[{frame:0,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}},{frame:6,angles:{thighL:-19,thighR:19,calfL:0,calfR:8,upperArmL:14,upperArmR:-14}},{frame:12,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}}],sit:[{frame:0,angles:{thighL:-75,thighR:-75,calfL:85,calfR:85}}]},fps:12};
 }
-export function normalizeCharacter(data){if(!data||data.format!=='laifu.character.v1')throw new Error('Format karakter bukan laifu.character.v1');if(!['male','female'].includes(data.genesis))throw new Error('Genesis harus male atau female');if(data.frame?.width!==64||data.frame?.height!==112)throw new Error('Frame karakter harus 64×112');const oldScale=data.scale?.doorUnits===1&&data.scale?.characterHeight===1&&data.scale?.levelHeight===2&&data.scale?.minBuildingHeight===2;
- if(oldScale)data.scale={...LAIFU_SCALE}; // migrate older world-unit exports (same physical 1:1:2 proportion)
- if(data.scale?.doorUnits!==2||data.scale?.characterHeight!==2||data.scale?.levelHeight!==4||data.scale?.minBuildingHeight!==4)throw new Error('Skala Laifu tidak valid: door=2, character=2, level=4, minBuilding=4');for(const v of VIEWS){if(!Array.isArray(data.views?.[v]?.parts))throw new Error('View '+v+' tidak ada');for(const p of data.views[v].parts){if(!PARTS.some(def=>def.id===p.id))throw new Error('Part tidak dikenal: '+p.id);if(typeof p.pixels!=='object'||!Array.isArray(p.pivot)||!Array.isArray(p.offset))throw new Error('Data part rusak');}}return data;}
+export function normalizeCharacter(data){
+ if(!data||data.format!=='laifu.character.v1')throw new Error('Format karakter bukan laifu.character.v1');
+ if(!['male','female'].includes(data.genesis))throw new Error('Genesis harus male atau female');
+ if(data.frame?.width!==64||data.frame?.height!==112)throw new Error('Frame karakter harus 64×112');
+ const oldScale=data.scale?.doorUnits===1&&data.scale?.characterHeight===1&&data.scale?.levelHeight===2&&data.scale?.minBuildingHeight===2;
+ if(oldScale)data.scale={...LAIFU_SCALE};
+ if(data.scale?.doorUnits!==2||data.scale?.characterHeight!==2||data.scale?.levelHeight!==4||data.scale?.minBuildingHeight!==4)throw new Error('Skala Laifu tidak valid: door=2, character=2, level=4, minBuilding=4');
+ // Old exports may still contain separate hair and face artwork. Keep its bytes
+ // in a detached, non-rendered backup instead of silently throwing away art.
+ const backup=data.appearance?.legacyDetachedLayers||{};
+ for(const v of VIEWS){
+  if(!Array.isArray(data.views?.[v]?.parts))throw new Error('View '+v+' tidak ada');
+  const parts=data.views[v].parts;
+  const detached=parts.filter(p=>p?.id==='face'||p?.id==='hair');
+  if(detached.length && !backup[v])backup[v]=structuredClone(detached);
+  data.views[v].parts=parts.filter(p=>p?.id!=='face'&&p?.id!=='hair');
+  for(const p of data.views[v].parts){
+   if(!PARTS.some(def=>def.id===p.id))throw new Error('Part tidak dikenal: '+p.id);
+   if(!p.pixels||typeof p.pixels!=='object'||!Array.isArray(p.pivot)||!Array.isArray(p.offset))throw new Error('Data part rusak');
+  }
+  const ids=new Set(data.views[v].parts.map(p=>p.id));
+  for(const def of PARTS)if(!ids.has(def.id))data.views[v].parts.push(createPart(def));
+ }
+ data.appearance={...(data.appearance||{}),source:'separate-emotion-overlay'};
+ if(Object.keys(backup).length)data.appearance.legacyDetachedLayers=backup;
+ data.skinKey=normalizeSkinKey(data.skinKey||DEFAULT_SKIN_KEY);
+ // Existing hardcoded skin shades are upgraded to color slots in every view.
+ convertLegacySkinPixels(data);
+ if(!('faceRef' in data))data.faceRef=null;
+ return data;
+}
 export function getPart(character,view,id){return character.views[view].parts.find(p=>p.id===id);}
 export function putPixel(part,x,y,color){x=Math.floor(x);y=Math.floor(y);if(x<0||x>=FRAME.width||y<0||y>=FRAME.height)return false;const k=key(x,y);if(color){if(part.pixels[k]===color)return false;part.pixels[k]=color;}else{if(!(k in part.pixels))return false;delete part.pixels[k];}return true;}
 export function fillPixel(part,x,y,color){const target=part.pixels[key(x,y)]||null;if(target===color)return;const seen=new Set(),stack=[[x,y]];while(stack.length){const [xx,yy]=stack.pop(),k=key(xx,yy);if(xx<0||xx>=64||yy<0||yy>=112||seen.has(k))continue;seen.add(k);if((part.pixels[k]||null)!==target)continue;putPixel(part,xx,yy,color);stack.push([xx-1,yy],[xx+1,yy],[xx,yy-1],[xx,yy+1]);}}
