@@ -281,6 +281,82 @@ function setLevelControl(){const v=$('placementLevel').value;$('placementY').dis
 }
 function updateWorld(newData){world=newData;selectedId=null;ghost=null;undoStack=[];redoStack=[];renderer.fit();saveLocal();refresh();}
 function refresh(){renderInspector();renderCatalog();updateStatus();invalidate();}
+let cameraBeforeSimulation=null;
+function setSimulationReadout(message){
+ const label=$('simReadout');if(label)label.textContent=message;
+}
+function startSimulation(){
+ if(simulating)return;
+ const spawn=findPlayerSpawn(world.objects,world.grid);
+ if(!spawn){
+  notify('Tambah SIDEWALK / ZEBRA CROSS kosong untuk spawn player.');
+  placementMessage('SIMULATION DENIED · perlu trotoar/zebra kosong',false);
+  return;
+ }
+ cameraBeforeSimulation=[...renderer.camera.target];
+ simPlayer=spawn;simulating=true;ghost=null;pointer=null;
+ heldKeys.clear();dragging=false;lastFrame=0;
+ $('simulationHud').hidden=false;
+ $('desktop').classList.add('sim-active');
+ $('simulatePlayer').textContent='■ EXIT PLAYER';
+ $('simulateMobile').textContent='■ EXIT';
+ setSimulationReadout('WASD / ↑↓←→ · TOUCH D-PAD · E = ACTION');
+ renderer.focus(simPlayer);
+ placementMessage('▶ PLAY · tabrakan dan zona pejalan kaki aktif',true);
+ updateStatus();notify('Player simulation dimulai (tidak mengubah map).');
+}
+function stopSimulation(){
+ if(!simulating)return;
+ simulating=false;simPlayer=null;heldKeys.clear();
+ $('simulationHud').hidden=true;
+ $('desktop').classList.remove('sim-active');
+ $('simulatePlayer').textContent='▶ SIMULATE PLAYER';
+ $('simulateMobile').textContent='▶ PLAY';
+ if(cameraBeforeSimulation)renderer.camera.target=[...cameraBeforeSimulation];
+ cameraBeforeSimulation=null;
+ placementMessage('EDIT MODE · player simulation selesai',null);
+ updateStatus();
+}
+function toggleSimulation(){simulating?stopSimulation():startSimulation();}
+function simulationAction(){
+ if(!simulating||!simPlayer)return;
+ const near=world.objects.filter(o=>!isSurface(o)&&o.kind!=='tree').map(o=>({
+  object:o,distance:Math.hypot(o.x-simPlayer.x,o.z-simPlayer.z)
+ })).filter(x=>x.distance<2.2).sort((a,b)=>a.distance-b.distance)[0];
+ if(!near){setSimulationReadout('No nearby action · E / ACTION');return;}
+ const actions=near.object.actions||[];
+ const message=near.object.name+' · '+(actions.length?'ACTION: '+actions[0]:'Belum ada Action di LOGIC');
+ setSimulationReadout(message);notify(message);
+}
+function simulationTick(dt){
+ if(!simulating||!simPlayer)return;
+ const horizontal=(heldKeys.has('right')?1:0)-(heldKeys.has('left')?1:0);
+ const vertical=(heldKeys.has('up')?1:0)-(heldKeys.has('down')?1:0);
+ const n=Math.hypot(horizontal,vertical);
+ if(n>0){
+  // WASD is screen-oriented under the locked 45-degree isometric camera.
+  const right=horizontal/n,forward=vertical/n,yaw=renderer.camera.yaw;
+  const speed=3.3,dx=(right*Math.cos(yaw)-forward*Math.sin(yaw))*speed*dt;
+  const dz=(-right*Math.sin(yaw)-forward*Math.cos(yaw))*speed*dt;
+  const tryMove=(x,z)=>simulateStep(simPlayer,x,z,world.objects,{grid:world.grid});
+  let result=tryMove(dx,dz);
+  if(!result.ok){
+   // Sliding along solid obstacles improves movement near curbs/buildings.
+   const slideX=tryMove(dx,0),slideZ=tryMove(0,dz);
+   result=slideX.ok?slideX:slideZ;
+  }
+  if(result.ok){
+   Object.assign(simPlayer,result.object);
+   simPlayer.rotation=((Math.atan2(dx,dz)*180/Math.PI)%360+360)%360;
+   simulationNotice='';
+  }else if(result.reason!==simulationNotice){
+   simulationNotice=result.reason;
+   setSimulationReadout('BLOCKED · '+result.reason);
+  }
+ }
+ const target=[simPlayer.x,simPlayer.y+1,simPlayer.z];
+ renderer.camera.target=renderer.camera.target.map((v,i)=>v+(target[i]-v)*Math.min(1,dt*9));
+}
 function initInteractions(){
  document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{setMode(b.dataset.mode);renderCatalog();});
  $('assetSearch').addEventListener('input',renderCatalog);
