@@ -57,22 +57,6 @@ export class CanvasIsoRenderer {
    for(let i=-36;i<=36;i+=(this.gridSize||1)){for(const [a,b] of [[[i,.02,-36],[i,.02,36]],[[-36,.02,i],[36,.02,i]]]){const p=this.project(a),q=this.project(b);ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();}}
    ctx.restore();
   }
-  // Draw visible grid lines on top of each terrain module, even in CPU Safe 2D.
-  if(this.gridOn)for(const o of objects){
-   if(!['road','road-local','road-wide','sidewalk','grass','grass-large','zebra'].includes(o.preset))continue;
-   const step=this.gridSize||1,rad=(o.rotation||0)*Math.PI/180,c=Math.cos(rad),sin=Math.sin(rad),y=o.y+o.height+.025;
-   const toWorld=(u,v)=>[o.x+u*c+v*sin,y,o.z-u*sin+v*c];
-   ctx.save();ctx.strokeStyle='rgba(16,48,65,.40)';ctx.lineWidth=1;
-   for(let u=-o.width/2;u<=o.width/2+.001;u+=step){
-    const a=this.project(toWorld(u,-o.depth/2)),b=this.project(toWorld(u,o.depth/2));
-    ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
-   }
-   for(let v=-o.depth/2;v<=o.depth/2+.001;v+=step){
-    const a=this.project(toWorld(-o.width/2,v)),b=this.project(toWorld(o.width/2,v));
-    ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
-   }
-   ctx.restore();
-  }
   const polygons=objects.flatMap(o=>this.faces(o,o.id===selectedId));
   if(ghost)polygons.push(...this.faces(ghost,false,true));
   polygons.sort((a,b)=>b.distance-a.distance);
@@ -88,6 +72,22 @@ export class CanvasIsoRenderer {
      ctx.beginPath();ctx.arc(centerX,topY+height*.12,height*.09,0,Math.PI*2);ctx.fill();ctx.lineWidth=height*.13;ctx.beginPath();ctx.moveTo(centerX,topY+height*.3);ctx.lineTo(centerX,topY+height*.7);ctx.stroke();ctx.lineWidth=Math.max(2,height*.07);ctx.beginPath();ctx.moveTo(centerX,topY+height*.65);ctx.lineTo(centerX-5,baseY);ctx.moveTo(centerX,topY+height*.65);ctx.lineTo(centerX+5,baseY);ctx.stroke();
     }ctx.restore();
    }
+  }
+  // Draw visible grid lines on top of each terrain module, even in CPU Safe 2D.
+  if(this.gridOn)for(const o of objects){
+   if(!['road','road-local','road-wide','sidewalk','grass','grass-large','zebra'].includes(o.preset))continue;
+   const step=this.gridSize||1,rad=(o.rotation||0)*Math.PI/180,c=Math.cos(rad),sin=Math.sin(rad),y=o.y+o.height+.025;
+   const toWorld=(u,v)=>[o.x+u*c+v*sin,y,o.z-u*sin+v*c];
+   ctx.save();ctx.strokeStyle='rgba(16,48,65,.40)';ctx.lineWidth=1;
+   for(let u=-o.width/2;u<=o.width/2+.001;u+=step){
+    const a=this.project(toWorld(u,-o.depth/2)),b=this.project(toWorld(u,o.depth/2));
+    ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
+   }
+   for(let v=-o.depth/2;v<=o.depth/2+.001;v+=step){
+    const a=this.project(toWorld(-o.width/2,v)),b=this.project(toWorld(o.width/2,v));
+    ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
+   }
+   ctx.restore();
   }
  }
  orbit(){}
