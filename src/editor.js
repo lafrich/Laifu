@@ -2,7 +2,7 @@ import './style.css';
 import {FRAME,VIEWS,PARTS,PALETTE,LAIFU_SCALE} from './constants.js';
 import {createGenesis,getPart,putPixel,fillPixel,shiftPixels,flipPixels,sampleAngles} from './model.js';
 import {drawCharacter,invalidatePart,applyPartTransform} from './render.js';
-import {exportPackage,loadCharacterFile} from './format.js';
+import {exportPackage,loadCharacterFile,loadEmotionFile} from './format.js';
 import {DEFAULT_SKIN_KEY,SKIN_TOKENS,SKIN_PRESETS,resolveSkinColor,normalizeSkinKey} from './skin.js';
 let character=createGenesis(),view='front',selected='torso',tool='pencil',color=PALETTE[0],zoom=5,grid=true,bones=true,playing=false,anim='idle',frame=0,drag=null,clipboard=null,selection=null,dirty=false;
 let history=[JSON.stringify(character)],historyAt=0,lastTime=0,lastTick=0;
@@ -51,6 +51,11 @@ app.innerHTML=`<div class="app">
     <div class="row"><button id="reset-transform" class="btn">Reset transform</button><button id="clear-part" class="btn danger">Clear pixels</button></div></div>
    <div class="section-title">EXPORT CONTRACT</div><div class="summary-box">Format <b>laifu.character.v1</b><br>Views <b>Front · Left · Right · Back</b><br>16-bit? <b>No, RGBA PNG</b><br>Plane <b>billboard, transparent</b><br>Height <b>1 door</b><br>Save mode <b>manual only</b></div>
    <p class="notice">Hasil ZIP: <b>character.json</b> (skinKey + rig tanpa face/hair), PNG per-view & PNG cropped. File karakter lama akan menyimpan face/hair sebelumnya dalam backup nonaktif.</p><a class="btn" style="display:block;text-align:center;text-decoration:none;margin-bottom:9px" href="../laifu-emosi/">Buka LAIFU EMOSI · Face Editor ↗</a>
+    <button id="import-emotion" class="btn" style="width:100%;margin-bottom:7px">↑ Import wajah dari Emosi</button>
+    <input id="emotion-file" type="file" accept=".json,.zip,application/json,application/zip" hidden>
+    <div class="summary-box" style="margin-bottom:9px"><strong>FACE OVERLAY / HEAD BONE</strong><div id="face-status">Tidak ada Emosi terpasang · kepala polos</div>
+      <div class="row" style="margin-top:7px"><button id="remove-emotion" class="btn danger">× Unbind wajah</button></div>
+    </div>
    <a class="btn" style="display:block;text-align:center;text-decoration:none" href="../laifu-map/">Buka Laifu Map ↗</a>
   </aside>
  </div><footer class="footer">LAIFU / Character v0.1 · 15-part Genesis · semantic Skin Key · detached face/hair · File eksport adalah sumber desain · Ctrl+Z Undo / Ctrl+Y Redo</footer>
@@ -63,7 +68,7 @@ function syncSkinFields(){const slots=normalizeSkinKey(character.skinKey);charac
   const found=Object.entries(SKIN_PRESETS).find(([,v])=>Object.keys(v).every(k=>v[k]===slots[k]));
   $('#skinPreset').value=found?.[0]||'custom';
 }
-function syncFields(){$('#char-name').value=character.name;$('#category').value=character.genesis;syncSkinFields();buildPalette();buildPartList();updateInspector();}
+function syncFields(){$('#char-name').value=character.name;$('#category').value=character.genesis;syncSkinFields();buildPalette();buildPartList();updateInspector();$('#face-status').textContent=character.faceOverlay?character.faceOverlay.name+' · '+character.faceOverlay.frameCount+' frames · mengikuti HEAD':'Tidak ada Emosi terpasang · kepala polos';$('#remove-emotion').disabled=!character.faceOverlay;}
 function buildViews(){$('#views').innerHTML='';for(const v of VIEWS){const b=document.createElement('button');b.className='btn small-btn'+(view===v?' active':'');b.textContent=v.charAt(0).toUpperCase()+v.slice(1);b.onclick=()=>{view=v;selection=null;buildViews();buildPartList();updateInspector();render();};$('#views').append(b);}}
 function buildPalette(){
  $('#palette').innerHTML='';
@@ -136,6 +141,24 @@ $('#part-visible').onchange=e=>{part().visible=e.target.checked;pushHistory();re
 $('#reset-transform').onclick=()=>{const p=part(),ref=PARTS.find(x=>x.id===p.id);p.angle=0;p.offset=[0,0];p.pivot=[...ref.pivot];pushHistory();render();};
 $('#clear-part').onclick=()=>{if(!confirm(`Kosongkan seluruh pixels ${part().label} pada view ${view}?`))return;part().pixels={};invalidatePart(part());pushHistory();buildPartList();render();};
 $('#new').onclick=()=>{if(dirty&&!confirm('Perubahan belum diekspor. Buat template baru dan buang perubahan?'))return;character=createGenesis();history=[JSON.stringify(character)];historyAt=0;dirty=false;view='front';selected='torso';selection=null;$('#status').textContent='Template baru · belum diekspor';syncFields();buildViews();render();};
+$('#import-emotion').onclick=()=>$('#emotion-file').click();
+$('#emotion-file').onchange=async ev=>{
+ const file=ev.target.files?.[0];if(!file)return;
+ try{
+  const database=await loadEmotionFile(file);
+  if(!database.emotions.length)throw Error('Database Emosi kosong');
+  const emo=database.emotions.find(x=>x.id===database.activeEmotionId)||database.emotions[0];
+  character.faceOverlay=emo;
+  character.faceRef={source:'laifu.emotion.v1',id:emo.id,name:emo.name};
+  character.faceFrame=0;
+  pushHistory();syncFields();render();toast('Emosi terpasang ke kepala: '+emo.name);
+ }catch(err){toast('Import Emosi gagal: '+err.message);}finally{ev.target.value='';}
+};
+$('#remove-emotion').onclick=()=>{
+ if(!character.faceOverlay)return;
+ character.faceOverlay=null;character.faceRef=null;character.faceFrame=0;
+ pushHistory();syncFields();render();toast('Wajah dilepas · Genesis tetap utuh');
+};
 $('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;if(dirty&&!confirm('Import akan mengganti desain saat ini yang belum diekspor. Lanjut?')){e.target.value='';return;}try{character=await loadCharacterFile(file);view='front';selected='torso';selection=null;history=[JSON.stringify(character)];historyAt=0;dirty=false;$('#status').textContent='Imported · ekspor jika ada perubahan';syncFields();buildViews();render();toast('Character berhasil diimport');}catch(err){toast('Import gagal: '+err.message);}finally{e.target.value='';}};
 $('#export').onclick=async()=>{character.name=$('#char-name').value||'Genesis';try{$('#export').disabled=true;await exportPackage(character);dirty=false;$('#status').textContent='✓ File berhasil diekspor manual';$('#status').style.color='#9ce8bf';toast('ZIP tersimpan ke folder download. Tidak ada cloud sync.');}catch(e){toast('Export gagal: '+e.message);}finally{$('#export').disabled=false;}};
 $('#animation').onchange=e=>{anim=e.target.value;frame=0;$('#frame').max=Math.max(1,...character.animations[anim].map(k=>k.frame));$('#frame').value=0;render();};
