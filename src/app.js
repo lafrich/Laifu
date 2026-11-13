@@ -1,4 +1,5 @@
 import {Renderer} from './renderer.js';
+import {CanvasIsoRenderer} from './isometric-fallback.js';
 import {clamp,intersectPlane} from './math.js';
 import {
  SCHEMA,PRESETS,templates,LEVEL_STEP,MAX_LEVEL,HEIGHT_MIN,HEIGHT_MAX,MAX_OBJECTS,
@@ -15,7 +16,27 @@ let world=initialWorld(),selectedId=null,activePreset='house',mode='select',tab=
 let snapOn=true,showGrid=true,assetGrid=false,ghost=null,pointer=null,dragging=false;
 let undoStack=[],redoStack=[],pendingFace=null,toastTimer=0,gesture=null;
 const touches=new Map();
-const renderer=new Renderer($('world'));
+let renderer;
+let activeMode='webgl';
+function activateSafePreview(reason){
+  const oldCanvas=$('world'),newCanvas=oldCanvas.cloneNode(false);
+  oldCanvas.replaceWith(newCanvas);
+  renderer=new CanvasIsoRenderer(newCanvas);
+  renderer.gridOn=showGrid;
+  activeMode='canvas';
+  const btn=$('safePreview');
+  if(btn){btn.textContent='▣ 2D SAFE ON';btn.title='CPU-only isometric preview enabled';}
+  const status=$('floatingStatus');
+  if(status){
+    status.style.display='block';status.style.opacity='1';status.style.pointerEvents='none';
+    status.textContent='BASIC ISOMETRIC PREVIEW · '+String(reason||'WebGL unavailable').slice(0,90);
+  }
+}
+try{renderer=new Renderer($('world'));}
+catch(err){
+ console.warn('Laifu WebGL unavailable; using safe isometric preview',err);
+ activateSafePreview(err?.message||'WebGL failed to initialize');
+}
 renderer.gridOn=true;
 let statusText='LOCAL DRAFT';
 const getSelected=()=>world.objects.find(o=>o.id===selectedId)||null;
@@ -163,6 +184,10 @@ function initInteractions(){
  $('placementLevel').onchange=setLevelControl;
  $('cameraType').onchange=()=>{renderer.camera.ortho=$('cameraType').value==='ortho';};
  $('gridSize').onchange=()=>{world.grid=finite($('gridSize').value,1);commit();};
+ $('safePreview').onclick=()=>{
+  if(activeMode==='webgl'){activateSafePreview('Manually enabled');initCanvas();notify('Basic isometric preview enabled');}
+  else notify('Basic mode is active. Reload to retry WebGL.');
+ };
  $('gridToggle').onclick=()=>{showGrid=!showGrid;renderer.gridOn=showGrid;$('gridToggle').classList.toggle('active',showGrid);};
  $('snapToggle').onclick=()=>{snapOn=!snapOn;$('snapToggle').classList.toggle('active',snapOn);};
  $('undo').onclick=undo;$('redo').onclick=redo;
@@ -253,6 +278,23 @@ function initCanvas(){const cv=$('world');
  cv.addEventListener('pointerup',endPointer);cv.addEventListener('pointercancel',e=>{touches.delete(e.pointerId);gesture=null;pointer=null;if(dragging)commit();dragging=false;});
  cv.addEventListener('pointerleave',()=>{if(!pointer)ghost=null;});
 }
-function loop(){renderer.render(world.objects,selectedId,ghost);requestAnimationFrame(loop);}
+function loop(){
+ try{
+  renderer.render(world.objects,selectedId,ghost);
+  if(activeMode==='webgl'&&renderer.gl.isContextLost()){
+   activateSafePreview('WebGL context lost');initCanvas();
+  }
+ }catch(err){
+  console.error('Laifu renderer error:',err);
+  if(activeMode==='webgl'){
+   try{activateSafePreview(err?.message||'GPU rendering failure');initCanvas();}
+   catch(fallbackErr){console.error('Laifu fallback failure',fallbackErr);}
+  }else{
+   const status=$('floatingStatus');
+   if(status){status.style.display='block';status.style.opacity='1';status.textContent='RENDER ERROR · '+String(err?.message||err).slice(0,130);}
+  }
+ }
+ requestAnimationFrame(loop);
+}
 
 populateLevelOptions();$('gridSize').value=String(world.grid);initInteractions();initCanvas();renderCatalog();renderInspector();updateStatus();loop();

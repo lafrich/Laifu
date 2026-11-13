@@ -7,7 +7,17 @@
   <meta name="description" content="Laifu, independent 3D placeholder world builder." />
   <title>LAIFU.EXE — 3D World Editor</title>
   <link rel="stylesheet" href="../../style.css" />
-  <script type="module" src="../../src/app.js"></script>
+  <script>
+window.addEventListener('error',function(e){
+ const status=document.getElementById('floatingStatus');
+ if(status){status.style.display='block';status.style.opacity='1';status.textContent='LAIFU ERROR · '+String(e.message||'JavaScript failed').slice(0,150);}
+},true);
+window.addEventListener('unhandledrejection',function(e){
+ const status=document.getElementById('floatingStatus');
+ if(status){status.style.display='block';status.style.opacity='1';status.textContent='LAIFU ERROR · '+String(e.reason?.message||e.reason).slice(0,150);}
+});
+</script>
+<script type="module" src="../../src/app.js"></script>
 </head>
 <body>
 <div id="desktop">
@@ -65,6 +75,7 @@
           <label class="tiny-control">GRID <select id="gridSize"><option value=".5">0.5</option><option value="1" selected>1</option><option value="2">2</option><option value="4">4</option></select></label>
           <span class="version">◇ ISOMETRIC 2:1 · CAMERA LOCKED</span>
           <span class="toolbar-space"></span>
+          <button id="safePreview" title="Use CPU isometric preview if WebGL screen is black">▣ Safe 2D</button>
           <button id="copyObject" title="Duplicate selected">⧉ Duplicate</button>
         </div>
       </section>
