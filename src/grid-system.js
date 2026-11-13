@@ -42,3 +42,17 @@ export function groundGridSegments(requestedStep=1,extent=50){
  }
  return segments;
 }
+
+/** White stripes drawn along the crosswalk's local depth, aligned to its road width. */
+export function crosswalkStripePolygons(o){
+ if(o.preset!=='crosswalk')return [];
+ const w=o.width/2,d=o.depth/2,angle=(o.rotation||0)*Math.PI/180;
+ const c=Math.cos(angle),s=Math.sin(angle),y=topOf(o)+.012;
+ const world=(x,z)=>[round(o.x+x*c+z*s),round(y),round(o.z-x*s+z*c)];
+ const stripes=[];
+ for(let z=-d+.16;z<d-.08;z+=.46){
+  const end=Math.min(d-.08,z+.25);
+  stripes.push([world(-w+.15,z),world(w-.15,z),world(w-.15,end),world(-w+.15,end)]);
+ }
+ return stripes;
+}
