@@ -154,7 +154,7 @@ function tryCandidate(obj,levelBase,ignoreId=null,snapping=snapOn){
 }
 function hoverPosition(clientX,clientY){
  if(simulating)return;
- const p=makePlacement(clientX,clientY,selectedId);
+ const p=makePlacement(clientX,clientY,mode==='place'?null:selectedId);
  if(!p){ghost=null;return;}
  $('coordinates').textContent='X '+p.x.toFixed(2)+' · Y '+p.y.toFixed(2)+' · Z '+p.z.toFixed(2);
  if(mode==='place'){
@@ -213,6 +213,7 @@ function rotate(d){
 }
 function rotatePlacement(d){
  placementRotation=((placementRotation+d)%360+360)%360;
+ if(ghost&&mode==='place')ghost.rotation=placementRotation;
  updatePlacementRotation();
  placementMessage('PREVIEW ROTATION '+placementRotation+'° · snapping active',null);
 }
@@ -474,6 +475,7 @@ function initCanvas(){const cv=$('world');
   if(touches.size===2){const p=[...touches.values()];gesture={distance:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y),cx:(p[0].x+p[1].x)/2,cy:(p[0].y+p[1].y)/2};pointer=null;ghost=null;return;}
   if(touches.size>2)return;
   const intent=e.button===2||e.button===1?'pan':mode;
+  if(intent==='place')hoverPosition(e.clientX,e.clientY);
   const hit=intent==='select'||intent==='move'?getRayHit(e.clientX,e.clientY):null;
   if(hit?.entity&&['select','move'].includes(intent))setSelected(hit.entity.id);
   pointer={id:e.pointerId,initialX:e.clientX,initialY:e.clientY,x:e.clientX,y:e.clientY,intent,hit:!!hit,moved:false};dragging=false;
@@ -485,7 +487,7 @@ function initCanvas(){const cv=$('world');
    renderer.zoom(-Math.log(Math.max(.1,len)/Math.max(.1,gesture.distance))*780);renderer.pan(cx-gesture.cx,cy-gesture.cy);gesture={distance:len,cx,cy};return;}
   if(pointer?.id===e.pointerId){const dx=e.clientX-pointer.x,dy=e.clientY-pointer.y;
    if(Math.hypot(e.clientX-pointer.initialX,e.clientY-pointer.initialY)>4)pointer.moved=true;
-   if(pointer.moved){if(pointer.intent==='pan')renderer.pan(dx,dy);else if(['move','select'].includes(pointer.intent)&&pointer.hit)moveDrag(e.clientX,e.clientY);}
+   if(pointer.moved){if(pointer.intent==='pan')renderer.pan(dx,dy);else if(pointer.intent==='place')hoverPosition(e.clientX,e.clientY);else if(['move','select'].includes(pointer.intent)&&pointer.hit)moveDrag(e.clientX,e.clientY);}
    pointer.x=e.clientX;pointer.y=e.clientY;
   }else if(!touches.size)hoverPosition(e.clientX,e.clientY);
  });
@@ -494,6 +496,7 @@ function initCanvas(){const cv=$('world');
   if(!pointer||pointer.id!==e.pointerId)return;
   const isClick=!pointer.moved,intent=pointer.intent;
   if(isClick){if(intent==='place')placeAt(e.clientX,e.clientY);else if(['select','move'].includes(intent)&&!pointer.hit)setSelected(null);}
+  else if(intent==='place')placeAt(e.clientX,e.clientY);
   else if(dragging){commit();dragging=false;}
   pointer=null;hoverPosition(e.clientX,e.clientY);
  }
