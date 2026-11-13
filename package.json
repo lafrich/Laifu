@@ -1,0 +1,15 @@
+{
+  "name": "laifu",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Independent dependency-free 3D placeholder world builder",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/serve.js",
+    "build": "node scripts/build.js",
+    "preview": "node scripts/serve.js dist",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

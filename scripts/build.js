@@ -1,0 +1,10 @@
+import {mkdir,copyFile,cp,rm} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const output=path.join(root,'dist');
+await rm(output,{force:true,recursive:true});
+await mkdir(output,{recursive:true});
+for(const f of ['index.html','style.css','.nojekyll'])await copyFile(path.join(root,f),path.join(output,f));
+await cp(path.join(root,'src'),path.join(output,'src'),{recursive:true});
+console.log('Laifu static build created: dist/ (no external dependencies)');
