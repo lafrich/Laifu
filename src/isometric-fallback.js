@@ -54,7 +54,23 @@ export class CanvasIsoRenderer {
   ctx.fillStyle='#bed3dd';ctx.fillRect(0,0,w,h);
   this.path([[-80,-.03,-80],[80,-.03,-80],[80,-.03,80],[-80,-.03,80]],'#d1dfd0');
   if(this.gridOn){ctx.save();ctx.strokeStyle='rgba(54,85,96,.22)';ctx.lineWidth=1;
-   for(let i=-36;i<=36;i+=2){for(const [a,b] of [[[i,.02,-36],[i,.02,36]],[[-36,.02,i],[36,.02,i]]]){const p=this.project(a),q=this.project(b);ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();}}
+   for(let i=-36;i<=36;i+=(this.gridSize||1)){for(const [a,b] of [[[i,.02,-36],[i,.02,36]],[[-36,.02,i],[36,.02,i]]]){const p=this.project(a),q=this.project(b);ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();}}
+   ctx.restore();
+  }
+  // Draw visible grid lines on top of each terrain module, even in CPU Safe 2D.
+  if(this.gridOn)for(const o of objects){
+   if(!['road','road-local','road-wide','sidewalk','grass','grass-large','zebra'].includes(o.preset))continue;
+   const step=this.gridSize||1,rad=(o.rotation||0)*Math.PI/180,c=Math.cos(rad),sin=Math.sin(rad),y=o.y+o.height+.025;
+   const toWorld=(u,v)=>[o.x+u*c+v*sin,y,o.z-u*sin+v*c];
+   ctx.save();ctx.strokeStyle='rgba(16,48,65,.40)';ctx.lineWidth=1;
+   for(let u=-o.width/2;u<=o.width/2+.001;u+=step){
+    const a=this.project(toWorld(u,-o.depth/2)),b=this.project(toWorld(u,o.depth/2));
+    ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
+   }
+   for(let v=-o.depth/2;v<=o.depth/2+.001;v+=step){
+    const a=this.project(toWorld(-o.width/2,v)),b=this.project(toWorld(o.width/2,v));
+    ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();
+   }
    ctx.restore();
   }
   const polygons=objects.flatMap(o=>this.faces(o,o.id===selectedId));
