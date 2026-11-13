@@ -84,7 +84,7 @@ export function newWorld(demo=true){
  add('tree',-10,5,.15);
  add('tree',10,12,.15);
  add('character',-5,2,.42);
- add('bus',0,-7,.24);
+ add('bus',0,-8,.24);
  add('house',-15,-8);
  add('block',15,-8);
  const raised=add('platform',-14,15,levelY(2));raised.levelMode='level';raised.level=2;
