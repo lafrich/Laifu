@@ -18,7 +18,7 @@ test('visible grid is always slightly above terrain, never below ground',()=>{
 });
 test('grid spacing matches authoring precision including half cells',()=>{
  assert.equal(gridStep(.1),.25);
- assert.equal(gridStep(8),4);
+ assert.equal(gridStep(9),8);
  const a=makeObject('sidewalk');
  assert.ok(surfaceGridSegments(a,.5).length>surfaceGridSegments(a,1).length);
 });
