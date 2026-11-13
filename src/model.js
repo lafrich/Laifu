@@ -4,8 +4,78 @@ const partById=id=>PARTS.find(p=>p.id===id);
 export function createPart(def){return {id:def.id,label:def.label,parent:def.parent,pivot:[...def.pivot],angle:0,offset:[0,0],visible:true,locked:false,z:def.z,pixels:{}};}
 function rect(p,x0,y0,x1,y1,c){for(let y=Math.ceil(y0);y<=y1;y++)for(let x=Math.ceil(x0);x<=x1;x++){if(x>=0&&x<FRAME.width&&y>=0&&y<FRAME.height)p.pixels[key(x,y)]=c;}}
 function ellipse(p,cx,cy,rx,ry,col){for(let y=Math.floor(cy-ry);y<=cy+ry;y++)for(let x=Math.floor(cx-rx);x<=cx+rx;x++){if(((x-cx)/rx)**2+((y-cy)/ry)**2<=1&&x>=0&&x<FRAME.width&&y>=0&&y<FRAME.height)p.pixels[key(x,y)]=col;}}
+
+/**
+ * Author a genuine 2D anatomical profile for Genesis. It is NOT an x-flipped
+ * front sprite: hips, chest, head profile, limbs, feet, pivots and z-order
+ * are redrawn for the side silhouette. Each direction remains independently
+ * editable after template creation. Changing the template never changes an
+ * imported/exported character document.
+ */
+function drawSideProfile(p,view){
+ const skin='#d99b7a',light='#f4c6a6',shade='#9b614d';
+ const shirt='#46627a',highlight='#6f9baa',dark='#24364c';
+ const trousers='#444866',shoe='#25273c';
+ const near=view==='right'?'R':'L',far=view==='right'?'L':'R';
+ const rig=(id,x,y,z)=>{p[id].pivot=[x,y];p[id].z=z;};
+ // Absolute pivot coordinates are specific to this direction, not front-view.
+ rig('pelvis',33,70,4);rig('torso',33,65,6);
+ rig('head',32,41,8);rig('face',32,31,9);rig('hair',32,25,10);
+ rig('thigh'+far,31,75,2);rig('calf'+far,31,89,2);rig('foot'+far,31,102,2);
+ rig('thigh'+near,35,75,3);rig('calf'+near,35,89,3);rig('foot'+near,35,102,4);
+ rig('upperArm'+far,31,48,5);rig('forearm'+far,31,59,5);rig('hand'+far,31,70,5);
+ rig('upperArm'+near,36,47,7);rig('forearm'+near,36,59,7);rig('hand'+near,36,70,7);
+ // Facing right (+X). Facing left is an exact 64px mirror applied below.
+ ellipse(p.head,32,31,7,10,skin);
+ rect(p.head,39,33,41,36,skin); // nose profile
+ rect(p.head,29,39,34,44,shade); // neck joins torso
+ ellipse(p.head,34,27,3,5,light);
+ rect(p.face,37,30,38,31,shoe);
+ rect(p.face,40,36,41,37,shade);
+ rect(p.hair,27,20,36,24,dark);
+ rect(p.hair,25,24,28,34,dark);
+ rect(p.hair,27,19,33,20,dark);
+ rect(p.torso,28,44,38,66,shirt); // 11px profile vs 17px front
+ rect(p.torso,37,48,40,54,shirt); // chest protrudes forward
+ rect(p.torso,28,46,29,64,dark); // back shadow
+ rect(p.torso,36,47,37,60,highlight);
+ rect(p.torso,30,42,35,45,skin);
+ rect(p.pelvis,29,67,37,76,trousers);
+ rect(p.pelvis,29,68,31,74,shoe);
+ // The far limbs are visibly behind the body, not spread like front view.
+ rect(p['upperArm'+far],28,47,32,59,dark);
+ rect(p['forearm'+far],29,59,33,69,shade);
+ rect(p['hand'+far],29,69,33,75,skin);
+ rect(p['upperArm'+near],34,46,39,59,shirt);
+ rect(p['upperArm'+near],37,49,39,56,dark);
+ rect(p['forearm'+near],34,59,39,70,skin);
+ rect(p['hand'+near],35,70,39,77,light);
+ rect(p['thigh'+far],29,75,34,89,trousers);
+ rect(p['calf'+far],29,89,34,102,trousers);
+ rect(p['foot'+far],28,102,40,105,shoe);
+ rect(p['thigh'+near],33,76,38,89,trousers);
+ rect(p['thigh'+near],36,78,38,86,shoe);
+ rect(p['calf'+near],33,89,38,102,trousers);
+ rect(p['foot'+near],32,102,45,107,shoe); // toes point forward
+ rect(p['foot'+near],34,102,39,103,trousers);
+ if(view==='left'){
+   // Mirroring applies to both pixels and pivot; bone positions therefore
+   // follow each directional silhouette and are not inherited from front.
+   for(const part of Object.values(p)){
+     const mirrored={};
+     for(const [coord,color] of Object.entries(part.pixels)){
+       const [x,y]=coord.split(',').map(Number);
+       mirrored[key(FRAME.width-1-x,y)]=color;
+     }
+     part.pixels=mirrored;
+     part.pivot[0]=FRAME.width-1-part.pivot[0];
+   }
+ }
+}
+
 export function createGenesis(){const views={};for(const view of VIEWS){const parts=PARTS.map(createPart);const p=Object.fromEntries(parts.map(p=>[p.id,p]));const skin='#d99b7a',light='#f4c6a6',shade='#9b614d',shirt='#46627a',dark='#24364c',trousers='#444866',shoe='#25273c';
  const profile=view==='left'||view==='right';const mid=32;
+ if(profile){drawSideProfile(p,view);views[view]={parts};continue;}
  ellipse(p.head,mid,31,profile?7:9,11,skin);rect(p.head,mid-5,37,mid+5,42,shade);ellipse(p.head,mid-3,27,3,6,light);
  rect(p.hair,profile?mid-7:mid-9,20,profile?mid+6:mid+8,25,dark);rect(p.hair,mid-8,24,mid-6,31,dark);if(view==='back')rect(p.hair,mid-8,26,mid+8,33,dark);
  if(view==='front'){rect(p.face,28,31,29,32,'#25273c');rect(p.face,35,31,36,32,'#25273c');rect(p.face,31,37,34,37,shade);}else if(profile){const ex=view==='right'?36:27;rect(p.face,ex,31,ex+1,32,dark);rect(p.face,view==='right'?37:26,35,view==='right'?38:27,36,shade);}
@@ -19,10 +89,6 @@ export function createGenesis(){const views={};for(const view of VIEWS){const pa
  rect(p.thighL,25,76,31,88,trousers);rect(p.thighR,33,76,39,88,trousers);
  rect(p.calfL,25,89,31,102,trousers);rect(p.calfR,33,89,39,102,trousers);
  rect(p.footL,23,102,32,107,shoe);rect(p.footR,32,102,42,107,shoe);
- if(profile){ // side silhouette still contains editable, separate layers
-   rect(p.torso,24,43,27,65,'#24364c');
-   if(view==='left')rect(p.face,26,36,27,37,shade);
- }
  views[view]={parts};
  }
  return {format:'laifu.character.v1',name:'Genesis 01',genesis:'male',frame:{...FRAME},scale:{...LAIFU_SCALE},views,animations:{idle:[{frame:0,angles:{}}],walk:[{frame:0,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}},{frame:6,angles:{thighL:-19,thighR:19,calfL:0,calfR:8,upperArmL:14,upperArmR:-14}},{frame:12,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}}],sit:[{frame:0,angles:{thighL:-75,thighR:-75,calfL:85,calfR:85}}]},fps:12};
