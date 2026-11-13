@@ -7,6 +7,8 @@ Independent new-generation 3D map and character suite. This repository is intent
 - **[Laifu Character](apps/laifu-character/)** — editable pixel body parts, bone hierarchy/pivot, four directions, pose preview, Male / Female Genesis category, **manual export only**. Inspired by the skeletal editor model of [Rigby2D](https://github.com/jaisurya-dev-art/rigby2d) (bones → slots → attachments). This is an original lightweight editor, **not a full Rigby2D fork/runtime**.
 - **[Laifu Map](apps/laifu-map/)** — full isometric 3D placeholder editor with asset categories, camera lock, X/Y/Z positioning, L0–L20 elevation placement, W/H/D inspector, six-sided texture uploads, and JSON world save/load; does not import Semesta assets.\n- **[Character Plane Test](apps/laifu-map-test/)** — standalone Three.js 3D character importer. Imports `.laifu-character.zip` or `character.json` and places them as transparent vertical planes on selected levels; orthographic camera remains locked to isometric.
 
+- **[Laifu Emosi](apps/laifu-emosi/)** — full-face animation and text-driven Convo editor with manual JSON/ZIP exports; overlays the Genesis head, not an additional body rig.
+
 ## Run locally
 
 Requires Node.js 20.19+ or 22.12+. Run `npm install && npm run dev`, open the Vite localhost URL, select any app. `npm test` checks the scale contract. `npm run build` creates a static multi-page `dist/` suitable for GitHub Pages.
@@ -49,3 +51,12 @@ Use **Laifu Map** to place procedural-size placeholders by category: street slab
 A character is a **vertical 2D plane in 3D space**, but it never rotates to face the camera. Its own world rotation controls both its plane yaw and its editable Genesis direction: **0° Front (+Z), 90° Right (+X), 180° Back (-Z), 270° Left (-X)**. The default character placeholder comes from the four Genesis views. In the map Inspector → Textures, upload four directional PNGs; an optional Plane texture is used as fallback. Trees continue to face the camera. Note: physical planes can appear thin when their yaw is perpendicular to the fixed isometric camera.
 
 The Character Map Test also uses world-oriented planes. The direction selector changes plane yaw and the rendered sprite together, not camera behavior. The numerical scale remains unchanged: 1 door = 1 character = 2 world units; one level = two doors = 4 world units. Editing Genesis design is still saved only with the **manual Export ZIP** workflow.
+
+## Skin Key and facial animation workflow (Laifu v0.3)
+
+- Genesis rig now has **15 parts**; `head` remains one blank head, while `face` and `hair` are **not** separate body rig parts. Importing old 17-part Genesis files preserves detached face/hair artwork under `appearance.legacyDetachedLayers` (non-rendered backup).
+- Three symbolic Skin Key tokens (`@skin/base`, `@skin/light`, `@skin/shadow`) map to `character.skinKey` and recolor exposed skin across all four directions without redrawing sprites or changing pivots. The Genesis editor exposes presets and individual custom color pickers; its pixel palette includes token brushes.
+- **[Laifu Emosi](apps/laifu-emosi/)** is an independent full-face RGBA animation editor. It uses a 64×112 pixel canvas for each complete face frame, up to 48 frames in each of four editable directions, independent X/Y/scale offsets, timeline, playback, simple text-to-frame Convo sequencing, and manual JSON/ZIP + PNG sheet export.
+- After exporting an Emosi database, open **[Laifu Character](apps/laifu-character/)** and click **Import wajah dari Emosi** to bind the chosen expression as `character.faceOverlay` attached to the Genesis `head` bone. Rig rotation/pose follows the same head transforms. The exported character JSON and PNG sprites contain the selected overlay, while Emosi remains a separate editable source asset.
+- Hair is reserved as a **future separate asset/app**; it is not edited in the Genesis bone rig. There is no automatic Drive/cloud synchronization in Laifu Emosi or Character (export/import remains manual).
+
