@@ -29,7 +29,7 @@ window.addEventListener('unhandledrejection',function(e){
     <nav class="menubar" aria-label="Project menu">
       <button id="saveDraft">💾 Save City</button><button id="loadDraft">📁 My Cities</button>
       <button id="exportJSON">⇩ Export JSON</button><button id="importJSON">⇧ Import JSON</button>
-      <button id="newWorld">＋ New World</button><button id="demoWorld">▦ Sample</button> <a href="../laifu-character/" style="color:#214a75;white-space:nowrap;padding:5px 7px;text-decoration:none">✎ Character Editor</a>
+      <button id="newWorld">＋ New World</button><button id="demoWorld">▦ Sample</button><button id="simulate" type="button" style="font-weight:800;color:#0e6b54">▶ Simulate Player</button> <a href="../laifu-character/" style="color:#214a75;white-space:nowrap;padding:5px 7px;text-decoration:none">✎ Character Editor</a>
       <div class="menu-grow"></div><span class="version">LAIFU / ISO 3D v0.2</span>
     </nav>
     <div class="workspace">
@@ -64,7 +64,12 @@ window.addEventListener('unhandledrejection',function(e){
           <div class="canvas-overlay canvas-bottom-left" id="canvasHint">CLICK OBJECT TO SELECT · RIGHT DRAG TO PAN · WHEEL TO ZOOM</div>
           <div class="canvas-bottom-right"><button id="safePreviewMobile" class="mobile-action" title="Force CPU isometric preview">▣ Safe 2D</button><button id="mobileAssets" class="mobile-action">▣ Assets</button><button id="mobileInspector" class="mobile-action">☷ Properties</button><button id="cameraReset" title="Reset camera">⌂</button></div>
           <div id="floatingStatus" class="floating-status" role="status"></div>
+          <div id="playerPad" hidden style="position:absolute;z-index:20;bottom:52px;left:10px;background:#e6f2f8df;padding:8px;border-radius:10px;box-shadow:0 3px 18px #3455;touch-action:none">
+            <div style="text-align:center"><button data-walk="up" type="button" style="padding:12px 18px">▲</button></div>
+            <div style="display:flex;gap:6px"><button data-walk="left" type="button" style="padding:12px 18px">◀</button><button data-walk="down" type="button" style="padding:12px 18px">▼</button><button data-walk="right" type="button" style="padding:12px 18px">▶</button></div>
+          </div>
         </main>
+        <div id="placementRule" role="status" style="padding:5px 12px;background:#e5f2e8;color:#166548;font-size:12px">SNAP: grid-bound terrain, non-overlapping objects · Trees → grass · Vehicles → asphalt · NPC → sidewalk/zebra</div>
         <div class="canvas-toolbar">
           <label>DROP ON <select id="placementLevel" aria-label="Placement elevation">
             <option value="land">LAND / L0 · Y 0</option>
@@ -72,10 +77,13 @@ window.addEventListener('unhandledrejection',function(e){
             <option value="custom">CUSTOM Y</option>
           </select></label>
           <label class="tiny-control">Y <input type="number" id="placementY" value="0" min="-32" max="160" step=".25" disabled /></label>
-          <label class="tiny-control">GRID <select id="gridSize"><option value=".5">0.5</option><option value="1" selected>1</option><option value="2">2</option><option value="4">4</option></select></label>
-          <span class="version">◇ ISOMETRIC 2:1 · CAMERA LOCKED</span>
+          <label class="tiny-control">GRID <select id="gridSize"><option value=".25">0.25</option><option value=".5">0.5</option><option value="1" selected>1</option><option value="2">2</option><option value="4">4</option></select></label>
+          <span class="version">◇ ISO 2:1 · GRID SNAP</span>
           <span class="toolbar-space"></span>
           <button id="safePreview" title="Use CPU isometric preview if WebGL screen is black">▣ Safe 2D</button>
+          <button id="placementRotateL" title="Rotate new object -90 degrees" type="button">↶ PLACEMENT</button>
+          <strong id="placementAngle" style="min-width:36px;font-size:12px">0°</strong>
+          <button id="placementRotateR" title="Rotate new object +90 degrees" type="button">PLACEMENT ↷</button>
           <button id="copyObject" title="Duplicate selected">⧉ Duplicate</button>
         </div>
       </section>
@@ -114,9 +122,9 @@ window.addEventListener('unhandledrejection',function(e){
             </div>
             <div class="inspector-pane" data-pane="textures" hidden>
               <div class="form-heading">MATERIAL / FACE MAPPING</div>
-              <p class="help-note">Replace each side independently. PNG, JPEG or WEBP files are embedded in the exported world JSON. For trees/characters, use one transparent plane image.</p>
+              <p class="help-note">Replace each side independently. PNG, JPEG or WEBP files are embedded in the exported world JSON. For trees, use one plane PNG; for characters, use directional front/right/back/left PNG.</p>
               <div id="faceRows"></div>
-              <p class="help-note">Orientation: FRONT = +Z, BACK = −Z, LEFT = −X, RIGHT = +X. Camera-facing planes automatically rotate toward the camera.</p>
+              <p class="help-note">Orientation: FRONT = +Z, BACK = −Z, LEFT = −X, RIGHT = +X. Characters follow world heading; only trees face camera.</p>
             </div>
           </form>
         </div>
