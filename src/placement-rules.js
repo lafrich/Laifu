@@ -21,7 +21,7 @@ export const allowedSurfaces=o=>SURFACE_RULES[o.kind]||[];
 const EPS=.015;
 const near=(a,b,t=.001)=>Math.abs(a-b)<=t;
 const rectDims=o=>{
- if(o.kind==='character')return [.62,.62];
+ if(o.kind==='character'){const d=Math.max(.62,Math.min(4,o.width*.85));return [d,Math.max(.62,Math.min(4,o.width*.65))];}
  if(o.kind==='tree'){
   const d=Math.min(1.25,Math.max(.65,o.width*.31));
   return [d,d];
