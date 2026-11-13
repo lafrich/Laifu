@@ -36,6 +36,8 @@ test('zebra overlay may rest on asphalt but not on sidewalk',()=>{
  const zebra=at('zebra',0,0,topOf(asphalt),{width:8,depth:2});
  const walk=at('sidewalk',5,0,0,{width:2,depth:8});
  assert.equal(validatePlacement(zebra,[asphalt,walk]).ok,true);
+ assert.equal(resolvePlacement(at('zebra',0,0,0,{width:8,depth:2}),[asphalt,walk],1).object.y,topOf(asphalt));
+ assert.equal(validatePlacement(zebra,[]).ok,false);
  assert.equal(validatePlacement(at('zebra',5,0,topOf(walk)),[asphalt,walk]).ok,false);
 });
 test('sample world contains no accidental collisions and scale stays 1:1:2',()=>{
