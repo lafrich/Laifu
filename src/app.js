@@ -50,6 +50,7 @@ function notify(message){const el=$('toast');el.textContent=message;el.classList
 function invalidate(){/* Request a frame; the renderer also updates after remote texture loads. */}
 function saveLocal(){try{localStorage.setItem(AUTO_KEY,serializeWorld(world));statusText='● AUTO SAVED';}catch{statusText='● LOCAL STORAGE FULL · EXPORT JSON';notify('Local storage penuh. Gunakan Export JSON.');}updateStatus();}
 function capture(){undoStack.push(serializeWorld(world));if(undoStack.length>50)undoStack.shift();redoStack=[];updateActions();}
+function captureBeforeObject(o,before){undoStack.push(serializeWorld({...world,objects:world.objects.map(x=>x.id===o.id?before:x)}));if(undoStack.length>50)undoStack.shift();redoStack=[];updateActions();}
 function commit(){saveLocal();refresh();}
 function undo(){if(!undoStack.length)return;redoStack.push(serializeWorld(world));world=parseWorld(undoStack.pop());selectedId=null;ghost=null;commit();notify('Undo');}
 function redo(){if(!redoStack.length)return;undoStack.push(serializeWorld(world));world=parseWorld(redoStack.pop());selectedId=null;ghost=null;commit();notify('Redo');}
@@ -174,7 +175,7 @@ function changeObject(fn){
  const before=structuredClone(o);fn(o);
  const result=validatePlacement(o,world.objects,o.id);
  if(!result.ok){Object.assign(o,before);notify('⛔ '+result.reason);renderInspector();return;}
- capture();commit();
+ captureBeforeObject(o,before);commit();
 }
 function rotate(d){changeObject(o=>{o.rotation=((o.rotation+d)%360+360)%360;});}
 function removeSelected(){const o=getSelected();if(!o)return;capture();world.objects=world.objects.filter(x=>x.id!==o.id);selectedId=null;commit();notify('Object deleted');}
@@ -201,7 +202,7 @@ function editProperty(key,value){const o=getSelected();if(!o)return;if(o.lock&&[
  else if(key==='name')o.name=String(value).slice(0,100)||o.name;
  else if(key==='color'&&/^#[0-9a-f]{6}$/i.test(value))o.color=value;
  else if(key==='notes')o.notes=String(value).slice(0,2000);
- const checked=validatePlacement(o,world.objects,o.id);if(!checked.ok){Object.assign(o,before);notify('⛔ '+checked.reason);renderInspector();return;}capture();commit();
+ const checked=validatePlacement(o,world.objects,o.id);if(!checked.ok){Object.assign(o,before);notify('⛔ '+checked.reason);renderInspector();return;}captureBeforeObject(o,before);commit();
 }
 function setLevelControl(){const v=$('placementLevel').value;$('placementY').disabled=v!=='custom';
  if(v.startsWith('level:')){const y=levelY(+v.split(':')[1]);renderer.camera.target[1]=y;notify(`DROP HEIGHT · L${v.split(':')[1]} · Y ${y}`);}
