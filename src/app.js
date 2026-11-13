@@ -97,11 +97,11 @@ function renderInspector(){const o=getSelected(),form=$('propertyForm');form.hid
  $('alphaValue').textContent=`${Math.round(o.alpha*100)}%`;
  $('heightSlider').value=clamp(o.y,HEIGHT_MIN,HEIGHT_MAX);
  $('heightReadout').textContent=o.y.toFixed(2);
- $('buildingRule').textContent=o.kind==='character'?'Character is locked to exactly 2 units (1 door).':o.kind==='building'?'Buildings cannot be shorter than 4 units (2 doors / 1 level).':'A level is 4 units = two vertically stacked doors.';
+ $('buildingRule').textContent=o.kind==='character'?'Character 2 units / 1 door. Heading 0° Front · 90° Right · 180° Back · 270° Left; plane does not face camera.':o.kind==='building'?'Buildings cannot be shorter than 4 units (2 doors / 1 level).':'A level is 4 units = two vertically stacked doors.';
  $('levelDetails').textContent=o.levelMode==='level'?`L${o.level} · base at Y ${levelY(o.level)}`:'Levels use 4 units (2 doors). Object base Y is independent of object height.';
  renderFaceRows();setTab(tab);updateActions();}
 function renderFaceRows(){const o=getSelected();const root=$('faceRows');root.replaceChildren();if(!o)return;
- const faces=boxKind(o.kind)?faceNames:['plane'];
+ const faces=o.kind==='character'?['front','right','back','left','plane']:(boxKind(o.kind)?faceNames:['plane']);
  for(const face of faces){const row=document.createElement('div');row.className='face-row';
   const copy=document.createElement('div');copy.innerHTML=`<strong>${face.toUpperCase()}</strong><small>${o.textures?.[face]?'CUSTOM TEXTURE':'PLACEHOLDER COLOR / DEFAULT'}</small>`;
   const actions=document.createElement('div');actions.className='face-actions';
@@ -221,7 +221,7 @@ function initInteractions(){
  $('saveDraft').onclick=()=>showDialog('SAVE CITY',`<label>WORLD NAME</label><input id="draftName" class="draft-name" maxlength="100" value="${safeHTML(world.title)}" /><p>Drafts are saved in this browser only. Export JSON for portable backups.</p>`,{confirm:'SAVE CITY',onConfirm:()=>{const name=$('draftName')?.value?.trim()||world.title;world.title=name;const drafts=loadLocal(DRAFTS_KEY,{});drafts[name]={savedAt:new Date().toISOString(),world:serializeWorld(world)};
  try{localStorage.setItem(DRAFTS_KEY,JSON.stringify(drafts));saveLocal();refresh();notify(`Saved ${name}`);}catch{notify('Browser storage full. Export JSON instead.');}}});
  $('loadDraft').onclick=()=>openDrafts();
- $('info').onclick=()=>showDialog('ABOUT LAIFU',`<strong>LAIFU.EXE · Independent 3D World Editor</strong><p>A new world editor built from scratch, with no Semesta code or assets.</p><p><strong>Scale:</strong> 1 door = 1 character = 2 units. 1 level = 2 doors = 4 units. Buildings are at least 4 units high.</p><p><strong>World:</strong> Y-up, actual 3D surfaces, six-sided textured cuboids for buildings/vehicles, camera-facing planes for characters/trees.</p><p><strong>Mouse:</strong> left click select/place, drag selected to move, right/middle drag pan (isometric view locked), wheel zoom. <strong>Touch:</strong> tools on left; two fingers to pinch and pan.</p><p><strong>File:</strong> JSON contains world geometry, logic metadata and embedded textures. Browser autosave is local-only; no Drive integration or Semesta dependency.</p>`,{hideConfirm:true});
+ $('info').onclick=()=>showDialog('ABOUT LAIFU',`<strong>LAIFU.EXE · Independent 3D World Editor</strong><p>A new world editor built from scratch, with no Semesta code or assets.</p><p><strong>Scale:</strong> 1 door = 1 character = 2 units. 1 level = 2 doors = 4 units. Buildings are at least 4 units high.</p><p><strong>World:</strong> Y-up, actual 3D surfaces, six-sided textured cuboids for buildings/vehicles, world-heading character planes, camera-facing tree planes.</p><p><strong>Mouse:</strong> left click select/place, drag selected to move, right/middle drag pan (isometric view locked), wheel zoom. <strong>Touch:</strong> tools on left; two fingers to pinch and pan.</p><p><strong>File:</strong> JSON contains world geometry, logic metadata and embedded textures. Browser autosave is local-only; no Drive integration or Semesta dependency.</p>`,{hideConfirm:true});
  window.addEventListener('keydown',e=>{
   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}
