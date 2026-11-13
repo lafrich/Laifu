@@ -5,7 +5,7 @@ import {resolvePlacement,validatePlacement,surfaceType,surfaceAtXZ} from './plac
 import {
  SCHEMA,PRESETS,templates,LEVEL_STEP,MAX_LEVEL,HEIGHT_MIN,HEIGHT_MAX,MAX_OBJECTS,
  CHARACTER_HEIGHT,MIN_BUILDING_HEIGHT,makeObject,newWorld,parseWorld,serializeWorld,
- heightForPlacement,surfaceAt,levelY,finite,round,snap,pickEntity,uid,boxKind
+ heightForPlacement,surfaceAt,levelY,topOf,finite,round,snap,pickEntity,uid,boxKind
 } from './world.js';
 
 const $=id=>document.getElementById(id);
