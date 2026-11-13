@@ -2,3 +2,43 @@
 @media(max-width:1080px){.workspace{grid-template-columns:50px 198px minmax(240px,1fr) 223px}.tools-panel{padding-left:3px;padding-right:3px}.tool{width:41px}.assets-intro{padding:9px}.asset-item{padding:7px 5px}.inspector-pane{padding-left:8px;padding-right:8px}.version{display:none}}
 @media(max-width:820px){#desktop{padding:0}.app-window{border-radius:0}.workspace{grid-template-columns:49px minmax(0,1fr)}.assets-panel,.inspector-panel{position:fixed;top:72px;bottom:30px;width:min(300px,calc(100vw - 50px));z-index:15;box-shadow:0 7px 19px #1d456844;transition:transform .2s}.assets-panel{left:49px;transform:translateX(-120%)}.assets-panel.open{transform:translateX(0)}.inspector-panel{right:0;transform:translateX(120%)}.inspector-panel.open{transform:translateX(0)}.mobile-close{display:inline}.mobile-action{display:inline-block}.canvas-toolbar{gap:5px}.canvas-toolbar select{max-width:138px}.copyright{display:none}.canvas-bottom-left{max-width:60%}}
 @media(max-width:550px){.titlebar{height:32px}.title-suffix{display:none}.menubar{height:35px;padding:3px;gap:0}.menubar button{padding:6px;font-size:10px}.workspace{grid-template-columns:44px minmax(0,1fr)}.tools-panel{padding:5px 1px}.tool{width:40px;height:43px}.canvas-header{height:28px}.canvas-header>span:last-child{font-size:8px}.active-bar{padding:6px;gap:5px}.active-mode{display:none}.scene-name{font-size:15px}.canvas-top-left{top:10px;left:10px}.canvas-top-right{right:9px;top:10px}.canvas-toolbar{min-height:66px;padding:5px}.canvas-toolbar label{font-size:9px}.canvas-toolbar .tiny-control:nth-child(3),.canvas-toolbar .tiny-control:nth-child(4),#copyObject{display:none}.canvas-bottom-left{font-size:8px;bottom:46px;max-width:90%}.statusbar{gap:9px}.statusbar #coordinates{max-width:160px;overflow:hidden;text-overflow:ellipsis}.assets-panel,.inspector-panel{top:67px;bottom:28px}.assets-panel{left:44px}.canvas-bottom-right{bottom:7px;right:8px}}
+
+/* LAIFU v0.3 — terrain grid, placement heading and playable map validation */
+.placement-rotation{display:flex;align-items:center;gap:4px;border:1px solid #b8ccd8;background:#f3faff;padding:3px;border-radius:4px;flex:none}
+.placement-rotation button{min-width:46px;min-height:29px;font-size:11px}
+#placementAngle{display:inline-block;min-width:34px;text-align:center;color:#2a6090;font:bold 11px monospace}
+.placement-feedback{font-size:10px;line-height:1.35;flex:1 1 100%;padding:5px 8px;background:#edf7fc;border:1px solid #b5d0e0;border-radius:3px;color:#42677f;white-space:normal}
+.placement-feedback.invalid{color:#a33434;background:#ffebeb;border-color:#e9a6a6}
+.placement-feedback.valid{color:#216d51;background:#e7f8ee;border-color:#8bceb0}
+.simulate-main{background:#d8f0e3!important;border:1px solid #74b394!important;font-weight:700!important;color:#236d4b!important}
+#desktop.sim-active .canvas-bottom-right{display:none}
+#desktop.sim-active .tools-panel,#desktop.sim-active .assets-panel,#desktop.sim-active .inspector-panel{pointer-events:none;opacity:.58}
+.simulation-hud{position:absolute;inset:0;z-index:8;pointer-events:none;color:#fff;font-family:system-ui,sans-serif}
+.simulation-hud[hidden]{display:none}
+.sim-title{position:absolute;top:18px;left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);padding:7px 13px;border-radius:5px;background:#142b39dc;font-weight:800;font-size:11px;letter-spacing:.4px;white-space:nowrap}
+.sim-sub{position:absolute;top:58px;left:50%;transform:translateX(-50%);max-width:calc(100% - 30px);background:#132e43bb;padding:5px 9px;border-radius:5px;font-size:10px;text-align:center;white-space:normal}
+.sim-pad{position:absolute;bottom:14px;left:14px;right:14px;display:flex;align-items:end;justify-content:space-between;pointer-events:none;gap:12px}
+.sim-directions{width:147px;display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(2,46px);gap:3px}
+.sim-directions button,.sim-actions button{pointer-events:auto;touch-action:none;user-select:none;border:1px solid #bed9e7aa;background:#224e6ed9;color:white;font-weight:800;border-radius:8px;box-shadow:0 3px 9px #102d4555;min-width:44px;min-height:44px;font-size:18px}
+.sim-directions button:active,.sim-actions button:active{background:#368dc7}
+.sim-up{grid-column:2;grid-row:1}.sim-left{grid-column:1;grid-row:2}.sim-down{grid-column:2;grid-row:2}.sim-right{grid-column:3;grid-row:2}
+.sim-actions{display:flex;gap:9px;flex-direction:column}
+.sim-actions button{font-size:10px;min-width:75px;padding:8px}
+#simAction{background:#266a46d9}#simExit{background:#853b43e8}
+@media(max-width:820px){
+ .canvas-toolbar .tiny-control.grid-size-control{display:flex!important}
+ .placement-rotation{order:1}
+ .placement-feedback{order:8;flex-basis:100%}
+ #simulatePlayer{display:none}
+}
+@media(max-width:550px){
+ .canvas-toolbar{min-height:86px;gap:5px 8px}
+ .canvas-toolbar .tiny-control.grid-size-control{display:flex!important}
+ .canvas-toolbar .tiny-control.grid-size-control select{max-width:71px}
+ .canvas-toolbar .placement-rotation button{padding:4px 6px;min-width:38px}
+ .placement-rotation{margin-left:0}
+ .simulation-hud .sim-title{font-size:10px}
+ .simulation-hud .sim-sub{font-size:9px}
+ .sim-pad{bottom:10px;left:8px;right:8px}
+ .sim-directions{transform:scale(.9);transform-origin:bottom left}
+}
