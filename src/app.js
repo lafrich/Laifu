@@ -6,6 +6,8 @@ import {
  CHARACTER_HEIGHT,MIN_BUILDING_HEIGHT,makeObject,newWorld,parseWorld,serializeWorld,
  heightForPlacement,surfaceAt,levelY,finite,round,snap,pickEntity,uid,boxKind
 } from './world.js';
+import {evaluatePlacement,isSurface,simulateStep,findPlayerSpawn,surfaceType} from './placement-rules.js';
+import {viewForHeading} from './character-direction.js';
 
 const $=id=>document.getElementById(id);
 const safeHTML=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -14,6 +16,8 @@ function loadLocal(key,fallback){try{const item=localStorage.getItem(key);return
 function initialWorld(){try{const raw=localStorage.getItem(AUTO_KEY);return raw?parseWorld(raw):newWorld();}catch{return newWorld();}}
 let world=initialWorld(),selectedId=null,activePreset='house',mode='select',tab='layout';
 let snapOn=true,showGrid=true,assetGrid=false,ghost=null,pointer=null,dragging=false;
+let placementRotation=0,simulating=false,simPlayer=null,lastFrame=0,simulationNotice='';
+const heldKeys=new Set();
 let undoStack=[],redoStack=[],pendingFace=null,toastTimer=0,gesture=null;
 const touches=new Map();
 let renderer;
@@ -45,7 +49,13 @@ const faceNames=['front','back','left','right','top','bottom'];
 const iconMap={road:'▰',sidewalk:'▤',platform:'▦',house:'⌂',block:'▥',tower:'▥',vehicle:'▣',bus:'▣',tree:'♠',character:'♙',prop:'◈'};
 
 function notify(message){const el=$('toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2800);}
-function invalidate(){/* Request a frame; the renderer also updates after remote texture loads. */}
+function invalidate(){/* The renderer updates every animation frame. */ }
+function placementMessage(message,valid=null){
+ const node=$('placementFeedback');if(!node)return;
+ node.textContent=message;node.classList.toggle('valid',valid===true);node.classList.toggle('invalid',valid===false);
+}
+function updatePlacementRotation(){$('placementAngle').textContent=placementRotation+'°';}
+
 function saveLocal(){try{localStorage.setItem(AUTO_KEY,serializeWorld(world));statusText='● AUTO SAVED';}catch{statusText='● LOCAL STORAGE FULL · EXPORT JSON';notify('Local storage penuh. Gunakan Export JSON.');}updateStatus();}
 function capture(){undoStack.push(serializeWorld(world));if(undoStack.length>50)undoStack.shift();redoStack=[];updateActions();}
 function commit(){saveLocal();refresh();}
@@ -57,10 +67,10 @@ function updateStatus(){const o=getSelected();$('saveStatus').textContent=status
  $('sceneMeta').textContent=`${world.objects.length} OBJECTS · GRID ${world.grid}`;
  $('sceneName').textContent=world.title.toUpperCase();
  $('activeAsset').textContent=o?o.name:(mode==='place'?(templates[activePreset]?.label||'NONE'):'— NONE —');
- $('modeLabel').textContent=mode.toUpperCase();
- $('canvasHint').textContent=mode==='place'?'TAP TO DROP / CLICK TO PLACE · USE DROP ON TO CHANGE Y':mode==='move'?'DRAG AN OBJECT TO MOVE IT · Y STAYS FIXED':'SELECT OBJECT · RIGHT DRAG PAN · WHEEL / PINCH ZOOM · ISO VIEW LOCKED';
+ $('modeLabel').textContent=simulating?'PLAY':mode.toUpperCase();
+ $('canvasHint').textContent=simulating?'SIMULATION · WASD / ARROWS · TOUCH D-PAD · E ACTION':mode==='place'?'TAP TO DROP / CLICK TO PLACE · USE DROP ON TO CHANGE Y':mode==='move'?'DRAG AN OBJECT TO MOVE IT · Y STAYS FIXED':'SELECT OBJECT · RIGHT DRAG PAN · WHEEL / PINCH ZOOM · ISO VIEW LOCKED';
  updateActions();}
-function setMode(next){if(!allModes.includes(next))return;mode=next;ghost=null;
+function setMode(next){if(!allModes.includes(next))return;if(simulating)stopSimulation();mode=next;ghost=null;
  document.querySelectorAll('[data-mode]').forEach(el=>el.classList.toggle('active',el.dataset.mode===mode));
  $('world').style.cursor=mode==='pan'?'grab':mode==='place'?'crosshair':'default';
  updateStatus();}
@@ -307,4 +317,4 @@ function loop(){
  requestAnimationFrame(loop);
 }
 
-populateLevelOptions();$('gridSize').value=String(world.grid);initInteractions();initCanvas();renderCatalog();renderInspector();updateStatus();loop();
+populateLevelOptions();$('gridSize').value=String(world.grid);renderer.gridStep=world.grid;renderer.buildGrid?.();updatePlacementRotation();initInteractions();initCanvas();renderCatalog();renderInspector();updateStatus();loop();
