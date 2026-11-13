@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Laifu Emosi — Face Animation Editor</title></head><body>
+<div id="app" class="emo-app">
+ <header class="top"><div><div class="logo">LAIFU <span>EMOSI.EXE</span></div><div class="brand-sub">Full-Face Pixel Frames · Head Bone Overlay</div></div>
+ <div class="top-middle"><span id="emosiStatus" class="status">Template demo · belum diekspor</span>
+  <a class="btn" href="../laifu-character/">Genesis Editor</a>
+  <button id="emoImport" class="btn">↑ Import JSON / ZIP</button>
+  <button id="emoExport" class="btn">↓ Export JSON</button>
+  <button id="emoExportZip" class="btn primary">↓ Export ZIP + PNG</button></div></header>
+ <div class="emo-workspace">
+  <aside class="sidebar emo-sidebar"><div class="section-title">EMOSI DATABASE <span id="emoCount">1</span></div>
+   <input id="emoSearch" placeholder="Cari ekspresi..." aria-label="Cari ekspresi">
+   <div id="emoLibrary" class="emo-library"></div>
+   <div class="emo-actions"><button id="emoNew" class="btn">+ New Blank</button><button id="emoDuplicate" class="btn">Duplicate</button><button id="emoDelete" class="btn danger">Delete</button></div>
+   <div class="section-title">GENESIS HEAD GUIDE</div><p class="notice">Kepala tetap milik rig Genesis. Emosi adalah overlay RGBA per frame yang mengikuti bone <b>head</b>. Tidak ada bone wajah, mata, atau mulut.</p>
+   <button id="emoImportGenesis" class="btn" style="width:100%">↑ Import Genesis ZIP / JSON</button>
+   <p class="notice">Format source: laifu.emotion.v1 · 64×112 · Front / Left / Right / Back · 1–48 frame.</p>
+  </aside>
+  <section class="emo-main">
+   <div class="emo-toolbar">
+    <button class="tool active" data-emo-tool="brush">✎ Brush</button><button class="tool" data-emo-tool="eraser">◇ Eraser</button><button class="tool" data-emo-tool="fill">▨ Fill</button>
+    <button class="tool" data-emo-tool="select">▣ Select</button><button class="tool" data-emo-tool="move">✥ Move</button>
+    <div class="separator"></div><button id="emoUndo" class="tool">↶ Undo</button><button id="emoRedo" class="tool">↷ Redo</button>
+    <button id="emoCopy" class="tool">Copy</button><button id="emoPaste" class="tool">Paste</button><button id="emoPasteFlip" class="tool">Paste Flip</button><button id="emoFlip" class="tool">Flip</button>
+   </div>
+   <div class="emo-content">
+    <div class="emo-canvas-area"><div class="emo-panel-cap"><strong id="emoActive">TALK</strong><span>RGBA / SINGLE FULL-FACE FRAME</span></div>
+     <div class="emo-canvas-scroll"><canvas id="emoCanvas" width="320" height="560"></canvas></div>
+     <div class="emo-foot"><label><input id="emoGrid" type="checkbox" checked> Grid</label><label><input id="emoGuide" type="checkbox" checked> Genesis Guide</label>
+       <button id="emoZoomOut" class="btn small-btn">−</button><span id="emoZoom">500%</span><button id="emoZoomIn" class="btn small-btn">+</button></div>
+    </div>
+    <aside class="emo-preview"><div class="section-title">FACE PLACEMENT / PREVIEW</div>
+     <div class="emo-preview-box"><canvas id="emoPreview" width="256" height="448"></canvas></div>
+     <p class="notice">Wajah mengikuti pivot kepala, bukan menghadap kamera. Posisi dapat diatur tiap arah.</p>
+     <div class="emo-palette" id="emoSwatches"></div><label class="field">Pixel color<input id="emoColor" type="color" value="#29313f"></label>
+     <label class="field">Name<input id="emoName" maxlength="70"></label>
+     <div class="inspector-fields"><label class="field">FPS<input id="emoFps" type="number" min="1" max="30" value="12"></label>
+      <label class="field">X Offset<input id="emoX" type="number" step="1" min="-24" max="24"></label>
+      <label class="field">Y Offset<input id="emoY" type="number" step="1" min="-24" max="24"></label>
+      <label class="field">Scale<input id="emoScale" type="number" step=".05" min=".25" max="3"></label></div>
+     <label class="toggle"><input id="emoLoop" type="checkbox" checked> Loop animation</label>
+     <label class="toggle"><input id="emoEnabled" type="checkbox" checked> Enable on this direction</label>
+    </aside>
+   </div>
+   <div class="emo-bottom">
+    <div class="emo-viewbar"><div id="emoViews" class="views"></div><strong id="emoFrameLabel">1/9</strong><button id="emoPlay" class="btn">▶ Play</button><small id="emoFrameCount">9/48</small></div>
+    <div id="emoTimeline" class="emo-timeline"></div>
+    <div class="emo-actions"><button id="emoAddFrame" class="btn">+ Blank frame</button><button id="emoDupFrame" class="btn">⧉ Duplicate frame</button><button id="emoRemoveFrame" class="btn danger">× Delete frame</button>
+     <button id="emoPrevFrame" class="btn">← Reorder</button><button id="emoNextFrame" class="btn">Reorder →</button></div>
+    <div class="emo-convo"><div class="section-title">CONVO EDITOR / TEXT → FRAME SEQUENCE <span id="emoConvoCount"></span></div>
+     <div class="emo-convo-controls"><textarea id="emoText" placeholder="Ketik dialog Bahasa Indonesia untuk preview lip-sync berdasarkan frame wajah yang kamu gambar...">Halo, apa kabar?</textarea>
+      <button id="emoConvo" class="btn primary">▶ Generate Convo</button></div>
+     <div class="emo-convo-timeline" id="emoConvoTimeline"></div><p class="notice">Teks memilih frame 1–9 yang sudah dibuat; tidak menggambar wajah otomatis, tidak menghasilkan audio.</p>
+    </div>
+   </div>
+  </section>
+ </div><div class="footer">LAIFU / EMOSI · Face animation remains a separate, editable asset · Save is MANUAL · No cloud sync</div>
+</div>
+<div id="emosiToast" class="toast"></div>
+<input id="emoImportFile" type="file" accept=".json,.zip,application/json,application/zip" hidden>
+<input id="emoGenesisFile" type="file" accept=".json,.zip,application/json,application/zip" hidden>
+<script type="module" src="../../src/emosi-editor.js"></script></body></html>
