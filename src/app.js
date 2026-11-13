@@ -229,6 +229,7 @@ function initInteractions(){
  $('placementRotateL').onclick=()=>changePlacementRotation(-90);
  $('placementRotateR').onclick=()=>changePlacementRotation(90);
  $('simulate').onclick=toggleSimulation;
+ $('simulateMobile').onclick=toggleSimulation;
  document.querySelectorAll('[data-walk]').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();heldDirections.add(b.dataset.walk);b.setPointerCapture(e.pointerId);});for(const evt of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(evt,()=>heldDirections.delete(b.dataset.walk));});
  $('undo').onclick=undo;$('redo').onclick=redo;
  $('fit').onclick=$('cameraReset').onclick=()=>renderer.fit();
@@ -328,7 +329,7 @@ function changePlacementRotation(delta){
 }
 function toggleSimulation(){
  simulation=!simulation;heldDirections.clear();ghost=null;
- $('simulate').textContent=simulation?'■ Stop Simulation':'▶ Simulate Player';
+ $('simulate').textContent=simulation?'■ Stop Simulation':'▶ Simulate Player';$('simulateMobile').textContent=simulation?'■ Stop':'▶ Play';
  $('playerPad').hidden=!simulation;
  if(simulation){
   let spawn=null;
@@ -339,7 +340,7 @@ function toggleSimulation(){
    }
    if(spawn)break;
   }
-  if(!spawn){simulation=false;$('simulate').textContent='▶ Simulate Player';$('playerPad').hidden=true;notify('Buat area trotoar/zebra kosong untuk spawn player');return;}
+  if(!spawn){simulation=false;$('simulate').textContent='▶ Simulate Player';$('simulateMobile').textContent='▶ Play';$('playerPad').hidden=true;notify('Buat area trotoar/zebra kosong untuk spawn player');return;}
   player=spawn;player.color='#eeb574';renderer.focus(player);lastMove=performance.now();
   notify('PLAYER: WASD / Arrow / tombol arah. ESC untuk keluar');
  }else{player=null;renderer.fit();}
