@@ -1,79 +1,41 @@
-# LAIFU.EXE — Independent 3D World Editor
+# Laifu
 
-A **new, clean-room 3D world-builder** with a classic Windows/XP-style city-editor layout. It is inspired by the *workflow* of Semesta, **not** by any Semesta code, images, textures, sprites, or data.
+Independent new-generation 3D map and character suite. This repository is intentionally separate from Semesta and its old assets.
 
-## Scale contract (locked)
+## Apps
 
-| Thing | World height | Ratio |
-|---|---:|---|
-| Standard door | 2 units | 1 door |
-| Character plane | 2 units | 1 door |
-| One elevation level | 4 units | 2 doors vertically |
-| Smallest building | **4 units minimum** | 1 level / 2 doors |
-| Two-level building | 8 units | 2 levels |
-| Three-level building | 12 units | 3 levels |
-
-**All heights are Y-up world coordinates**, not baked isometric sprites. Level changes only move the object's base Y; the actual object height is independent. The minimum height applies to every building preset, property edit, and JSON import. Character height remains exactly 2 units.
-
-## Objects
-
-- **Road and sidewalk:** real thick 3D slab, customizable width/depth/thickness.
-- **Building:** cuboid of arbitrary width/depth/height, minimum height 4. Six assignable image faces.
-- **Vehicles:** cuboid, six assignable faces (LFC-style vehicle placeholder).
-- **Tree and character:** camera-facing vertical planes, optional transparent PNG/WEBP textures; rendered as generated placeholders until replaced.
-- **Platform:** solid surface with actual top Y for stacking / dropping objects above ground.
-- **Props:** cuboids; 3D transforms and logic metadata.
-
-## 3D editor
-
-- Isometric orthographic and perspective camera modes; mouse-wheel zoom, right-drag orbit, middle-drag pan, and two-finger touch gestures.
-- Select / Place / Move / Pan / Orbit tools.
-- Land (Y=0), Top Surface (raycast against 3D top surfaces), 20 explicit height levels (4 units each) and Custom Y placement.
-- Hover placement preview, grid and snapping, +/-90° rotations, duplicate, replace placeholder, delete, undo/redo.
-- Properties: X, Y, Z, rotation, width, depth, height, opacity, color, level, lock, blocking, tags, actions, notes.
-- **Per-face image replacement**: upload from device or enter HTTP(S) texture URL; image data is embedded in exported JSON.
-- New blank city, procedural demo, named browser-local drafts, autosave, export/import `.json`.
-- No runtime network calls to Semesta, Google Drive, or other game services; entirely standalone.
+- **[Laifu Character](apps/laifu-character/)** — editable pixel body parts, bone hierarchy/pivot, four directions, pose preview, Male / Female Genesis category, **manual export only**. Inspired by the skeletal editor model of [Rigby2D](https://github.com/jaisurya-dev-art/rigby2d) (bones → slots → attachments). This is an original lightweight editor, **not a full Rigby2D fork/runtime**.
+- **[Laifu Map Test](apps/laifu-map/)** — standalone Three.js 3D integration scene. Imports the editor's `.laifu-character.zip` or `character.json`, places its front/left/right/back sprite as a transparent vertical billboard plane with feet grounded, and supports elevation levels. This is a prototype integration scene, not a fully-fledged map creator.
 
 ## Run locally
 
-Requires Node.js 20+.
+Requires Node.js 20.19+ or 22.12+. Run `npm install && npm run dev`, open the Vite localhost URL, select either app. `npm test` checks the scale contract. `npm run build` creates a static multi-page `dist/` suitable for GitHub Pages.
 
-```sh
-npm run dev
-```
+## Locked scale: **character : door : level = 1 : 1 : 2**
 
-Open the local URL displayed by the built-in development server (usually `http://localhost:4173`). No external asset pack is required. To build a static site:
+| Object | World Y height |
+|---|---:|
+| Genesis character visible plane | **1** |
+| One door | **1** |
+| One level of elevation | **2** |
+| Smallest building | **2** |
 
-```sh
-npm test
-npm run build
-npm run preview
-```
+A character at level N has **foot Y = N × 2**, rendered as a 1-unit-tall cropped sprite plane centered at **Y = N × 2 + 0.5**. Other views share the same physical height; width follows visible sprite aspect ratio. The 64×112 work canvas is *not* mapped directly to 1 unit: its transparent margins are cropped before plane creation.
 
-The `dist/` directory is deployable as a static site. There are **no npm or runtime dependencies**; the browser's WebGL is the rendering backend. The 3D renderer is written specifically for Laifu.
+## Laifu Character editor
 
-## GitHub Pages
+1. Start with a single `Genesis 01` template; set Male Genesis or Female Genesis as a **category**, not a replacement geometry preset. Customize anatomy independently in each direction with body parts.
+2. Choose a view (`front`, `left`, `right`, `back`), then a part (17 body parts). Brush/Eraser/Fill edit the chosen layer. Select, Copy, Paste, Paste Flip, Flip Part, Move, and per-part pivot/rotation controls are provided. Lock/visibility and Undo/Redo work per document.
+3. Preview skeletal pose presets (`idle`, `walk`, `sit`). Bone transforms are hierarchical. These presets use rotation keys; **this MVP does not implement Rigby2D's full IK, weighted meshes, or animation authoring timeline**.
+4. Click **Export Manual ZIP** to download the entire editable JSON source and the four directional PNGs (full frame and cropped), plus package README. Nothing is automatically saved. No `localStorage`, IndexedDB, autosave, or Drive synchronization. The browser warns when leaving with unexported edits.
+5. In Laifu Map Test, manually import this same ZIP (or extracted `character.json`); click the map to place the 1-door-high plane on a selected level.
 
-This project includes `.github/workflows/deploy.yml` to test, build, and deploy the site whenever `main` receives a push. For the repository **`lafrich/Laifu`**, configure **Settings → Pages → Source: GitHub Actions**. The project does not copy or modify the existing Semesta repository.
+### Character format `laifu.character.v1`
 
-## Controls
+The JSON contains `name`, `genesis`, `frame`, immutable scale contract, `views.{front,left,right,back}.parts[]` (part IDs, bones/parents, pivots, offsets, per-pixel colors) and basic `animations` keyframe arrays. The map uses `src/plane.js` as its reusable Three.js adapter (`createCharacterPlane`, `placeCharacterPlane`, `faceCharacterPlaneToCamera`). When the full Laifu Map app is implemented, import this module there.
 
-| Input | Effect |
-|---|---|
-| Pick asset in FILES | Activate Place mode |
-| Left click | Select/place; drag selected object to move |
-| Right mouse drag | Orbit camera |
-| Middle mouse drag | Pan camera |
-| Mouse wheel | Zoom |
-| Two-finger touch | Pan and pinch-zoom |
-| Delete/Backspace | Delete selection |
-| Ctrl/Cmd+Z | Undo |
-| Ctrl/Cmd+Shift+Z | Redo |
-| Esc | Exit Place mode or clear selection |
+**Compatibility:** This format is **Laifu native**. It is inspired by Rigby2D concepts, but it is not claimed to be interchangeable with Rigby2D `.rigby`, Spine skeletons, or `.skel` exports. Rigby2D itself exports skeleton JSON and atlases; native Rigby2D imports need a future converter and are not silently accepted here.
 
-## JSON schema
+## License attribution
 
-`src/world.js` defines `laifu.world.v1`. No Semesta JSON importer is included. Each object has `id`, `preset`, `kind`, `x`, `y`, `z`, `width`, `height`, `depth`, `rotation`, `color`, `levelMode`, `level`, `textures`, and optional logic fields. The JSON preserves editable placeholders for future external artwork or models.
-
-**Note:** Laifu v0.1 is an editor/prototype, not the full Semesta gameplay or AI simulation. Browser drafts are local to the same browser; export JSON to move worlds between devices. Image URLs need CORS permissions for WebGL textures. Very large embedded textures can exceed browser storage quotas.
+Rigby2D © its respective authors, available under MIT OR Apache-2.0. This repo's editor code does not copy Rigby2D source; it takes inspiration from the public rig conceptual model. No Rigby2D demo assets are used.
