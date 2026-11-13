@@ -1,6 +1,7 @@
 import {Renderer} from './renderer.js';
 import {CanvasIsoRenderer} from './isometric-fallback.js';
 import {clamp,intersectPlane} from './math.js';
+import {resolvePlacement,validatePlacement,surfaceType,surfaceAtXZ} from './placement.js';
 import {
  SCHEMA,PRESETS,templates,LEVEL_STEP,MAX_LEVEL,HEIGHT_MIN,HEIGHT_MAX,MAX_OBJECTS,
  CHARACTER_HEIGHT,MIN_BUILDING_HEIGHT,makeObject,newWorld,parseWorld,serializeWorld,
@@ -13,7 +14,8 @@ const AUTO_KEY='laifu.autosave.v1',DRAFTS_KEY='laifu.drafts.v1';
 function loadLocal(key,fallback){try{const item=localStorage.getItem(key);return item?JSON.parse(item):fallback;}catch{return fallback;}}
 function initialWorld(){try{const raw=localStorage.getItem(AUTO_KEY);return raw?parseWorld(raw):newWorld();}catch{return newWorld();}}
 let world=initialWorld(),selectedId=null,activePreset='house',mode='select',tab='layout';
-let snapOn=true,showGrid=true,assetGrid=false,ghost=null,pointer=null,dragging=false;
+let snapOn=true,showGrid=true,assetGrid=false,ghost=null,pointer=null,dragging=false,placementRotation=0;
+let simulation=false,player=null,lastMove=0;const heldDirections=new Set();
 let undoStack=[],redoStack=[],pendingFace=null,toastTimer=0,gesture=null;
 const touches=new Map();
 let renderer;
@@ -57,10 +59,10 @@ function updateStatus(){const o=getSelected();$('saveStatus').textContent=status
  $('sceneMeta').textContent=`${world.objects.length} OBJECTS · GRID ${world.grid}`;
  $('sceneName').textContent=world.title.toUpperCase();
  $('activeAsset').textContent=o?o.name:(mode==='place'?(templates[activePreset]?.label||'NONE'):'— NONE —');
- $('modeLabel').textContent=mode.toUpperCase();
+ $('modeLabel').textContent=simulation?'SIMULATE PLAYER':mode.toUpperCase();
  $('canvasHint').textContent=mode==='place'?'TAP TO DROP / CLICK TO PLACE · USE DROP ON TO CHANGE Y':mode==='move'?'DRAG AN OBJECT TO MOVE IT · Y STAYS FIXED':'SELECT OBJECT · RIGHT DRAG PAN · WHEEL / PINCH ZOOM · ISO VIEW LOCKED';
  updateActions();}
-function setMode(next){if(!allModes.includes(next))return;mode=next;ghost=null;
+function setMode(next){if(simulation){notify('Stop simulation to edit');return;}if(!allModes.includes(next))return;mode=next;ghost=null;
  document.querySelectorAll('[data-mode]').forEach(el=>el.classList.toggle('active',el.dataset.mode===mode));
  $('world').style.cursor=mode==='pan'?'grab':mode==='place'?'crosshair':'default';
  updateStatus();}
@@ -114,41 +116,73 @@ function renderFaceRows(){const o=getSelected();const root=$('faceRows');root.re
   url.addEventListener('change',()=>{const v=url.value.trim();if(v&&!/^https?:\/\//i.test(v)){notify('Use a valid http/https image URL');return;}capture();if(v)o.textures[face]=v;else delete o.textures[face];commit();});row.append(url);root.append(row);
  }
 }
-function makePlacement(clientX,clientY,ignore=null){const ray=renderer.screenRay(clientX,clientY);if(!ray)return null;
+function makePlacement(clientX,clientY,ignore=null){
+ const ray=renderer.screenRay(clientX,clientY);if(!ray)return null;
  const levelMode=$('placementLevel').value,customY=finite($('placementY').value);
  const elev=heightForPlacement(levelMode,customY,ray,world.objects,ignore);
- let point=levelMode==='surface'?surfaceAt(ray,world.objects,ignore):intersectPlane(ray,elev.y);
- if(!point)return null;
- const step=snapOn?world.grid:0;
- const x=step?snap(point.x,step):round(point.x),z=step?snap(point.z,step):round(point.z);
- return {x,y:elev.y,z,levelMode:elev.mode,level:elev.level,point};
+ const point=levelMode==='surface'?surfaceAt(ray,world.objects,ignore):intersectPlane(ray,elev.y);
+ return point?{x:point.x,z:point.z,y:elev.y,levelMode:elev.mode,level:elev.level}:null;
 }
-function hoverPosition(clientX,clientY){const p=makePlacement(clientX,clientY,selectedId);if(!p){ghost=null;return;}
- $('coordinates').textContent=`X ${p.x.toFixed(2)} · Y ${p.y.toFixed(2)} · Z ${p.z.toFixed(2)}`;
- if(mode==='place'){const o=makeObject(activePreset,p.x,p.z,p.y);o.levelMode=p.levelMode;o.level=p.level;ghost=o;}else ghost=null;
+function prepareCandidate(p,preset=activePreset,ignore=null,rotation=placementRotation){
+ const o=makeObject(preset,p.x,p.z,p.y);o.rotation=rotation;o.levelMode=p.levelMode;o.level=p.level;
+ return resolvePlacement(o,world.objects,snapOn?world.grid:.25,ignore);
 }
-function placeAt(x,y){if(world.objects.length>=MAX_OBJECTS){notify('World limit reached');return;}
- const p=makePlacement(x,y);if(!p){notify('Camera ray did not reach the selected plane. Try fitting the camera.');return;}
- capture();const o=makeObject(activePreset,p.x,p.z,p.y);o.levelMode=p.levelMode;o.level=p.level;world.objects.push(o);selectedId=o.id;
- commit();notify(`Placed ${o.kind.toUpperCase()} at Y ${o.y}`);
+function hoverPosition(clientX,clientY){
+ const p=makePlacement(clientX,clientY,selectedId);if(!p){ghost=null;return;}
+ if(mode==='place'){
+  const result=prepareCandidate(p);ghost=result.object;
+  ghost.invalid=!result.ok;
+  $('placementRule').textContent=result.ok?'✓ Snap valid':'⛔ '+result.reason;
+  $('placementRule').style.color=result.ok?'#166548':'#bb3434';
+ }
+ else ghost=null;
+ const q=ghost||p;
+ $('coordinates').textContent=`X ${q.x.toFixed(2)} · Y ${q.y.toFixed(2)} · Z ${q.z.toFixed(2)}`;
+}
+function placeAt(x,y){
+ if(world.objects.length>=MAX_OBJECTS){notify('World limit reached');return;}
+ const p=makePlacement(x,y);if(!p){notify('Ray tidak mencapai permukaan');return;}
+ const result=prepareCandidate(p);if(!result.ok){notify('⛔ '+result.reason);return;}
+ capture();world.objects.push(result.object);selectedId=result.object.id;commit();notify('Placed '+result.object.preset+' · '+result.object.rotation+'°');
 }
 function getRayHit(clientX,clientY){const ray=renderer.screenRay(clientX,clientY);return ray?pickEntity(ray,world.objects,renderer.camera.yaw):null;}
-function moveDrag(x,y){const o=getSelected();if(!o||o.lock)return;
- const ray=renderer.screenRay(x,y);const p=intersectPlane(ray,o.y);if(!p)return;
+function moveDrag(x,y){
+ const o=getSelected();if(!o||o.lock)return;
+ const ray=renderer.screenRay(x,y),p=intersectPlane(ray,o.y);if(!p)return;
+ const candidate={...o,x:p.x,z:p.z};
+ const result=resolvePlacement(candidate,world.objects,snapOn?world.grid:.25,o.id);
+ if(!result.ok){$('placementRule').textContent='⛔ '+result.reason;return;}
  if(!dragging){capture();dragging=true;}
- o.x=snapOn?snap(p.x,world.grid):round(p.x);o.z=snapOn?snap(p.z,world.grid):round(p.z);
+ o.x=result.object.x;o.z=result.object.z;
  $('coordinates').textContent=`X ${o.x} · Y ${o.y} · Z ${o.z}`;
 }
-function duplicate(){const o=getSelected();if(!o)return;if(world.objects.length>=MAX_OBJECTS){notify('World limit reached');return;}
- capture();const clone=structuredClone(o);clone.id=uid();clone.name=`${o.name} COPY`;clone.x=round(clone.x+world.grid);clone.z=round(clone.z+world.grid);world.objects.push(clone);selectedId=clone.id;commit();notify('Object duplicated');}
-function changeObject(fn){const o=getSelected();if(!o)return;if(o.lock&&fn.name==='position')return;capture();fn(o);commit();}
+function duplicate(){
+ const o=getSelected();if(!o||world.objects.length>=MAX_OBJECTS)return;
+ const clone=structuredClone(o);clone.id=uid();clone.name=o.name+' COPY';
+ let valid=null;
+ for(let radius=1;radius<=8&&!valid;radius++){
+  for(const [dx,dz] of [[radius,0],[-radius,0],[0,radius],[0,-radius],[radius,radius],[-radius,-radius]]){
+   const r=resolvePlacement({...clone,x:o.x+dx*world.grid,z:o.z+dz*world.grid},world.objects,world.grid);
+   if(r.ok){valid=r.object;break;}
+  }
+ }
+ if(!valid){notify('Tidak ada lokasi valid untuk duplicate');return;}
+ capture();world.objects.push(valid);selectedId=valid.id;commit();
+}
+function changeObject(fn){
+ const o=getSelected();if(!o||o.lock)return;
+ const before=structuredClone(o);fn(o);
+ const result=validatePlacement(o,world.objects,o.id);
+ if(!result.ok){Object.assign(o,before);notify('⛔ '+result.reason);renderInspector();return;}
+ capture();commit();
+}
 function rotate(d){changeObject(o=>{o.rotation=((o.rotation+d)%360+360)%360;});}
 function removeSelected(){const o=getSelected();if(!o)return;capture();world.objects=world.objects.filter(x=>x.id!==o.id);selectedId=null;commit();notify('Object deleted');}
 function replaceSelected(){const old=getSelected();if(!old)return;
  capture();const fresh=makeObject(activePreset,old.x,old.z,old.y);fresh.id=old.id;fresh.rotation=old.rotation;fresh.name=templates[activePreset].label;fresh.levelMode=old.levelMode;fresh.level=old.level;fresh.tags=[...old.tags];fresh.actions=[...old.actions];fresh.notes=old.notes;
- const i=world.objects.indexOf(old);world.objects[i]=fresh;commit();notify('Replaced geometry · position preserved');}
+ const checked=validatePlacement(fresh,world.objects,old.id);if(!checked.ok){notify('⛔ '+checked.reason);return;}const i=world.objects.indexOf(old);world.objects[i]=fresh;commit();notify('Replaced geometry · position preserved');}
 function editProperty(key,value){const o=getSelected();if(!o)return;if(o.lock&&['x','y','z','levelMode'].includes(key)){notify('Unlock object before moving it');renderInspector();return;}
- capture();
+ const before=structuredClone(o);
  if(['x','y','z','width','height','depth','rotation','alpha'].includes(key)){
   const number=finite(value,o[key]);if(['x','y','z'].includes(key)){o[key]=round(clamp(number,-500,500));if(key==='y')o.levelMode='custom';}
   else if(key==='height')o.height=o.kind==='character'?CHARACTER_HEIGHT:round(clamp(number,o.kind==='building'?MIN_BUILDING_HEIGHT:.04,150));
@@ -167,7 +201,7 @@ function editProperty(key,value){const o=getSelected();if(!o)return;if(o.lock&&[
  else if(key==='name')o.name=String(value).slice(0,100)||o.name;
  else if(key==='color'&&/^#[0-9a-f]{6}$/i.test(value))o.color=value;
  else if(key==='notes')o.notes=String(value).slice(0,2000);
- commit();
+ const checked=validatePlacement(o,world.objects,o.id);if(!checked.ok){Object.assign(o,before);notify('⛔ '+checked.reason);renderInspector();return;}capture();commit();
 }
 function setLevelControl(){const v=$('placementLevel').value;$('placementY').disabled=v!=='custom';
  if(v.startsWith('level:')){const y=levelY(+v.split(':')[1]);renderer.camera.target[1]=y;notify(`DROP HEIGHT · L${v.split(':')[1]} · Y ${y}`);}
@@ -183,7 +217,7 @@ function initInteractions(){
  document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
  $('placementLevel').onchange=setLevelControl;
  // Orthographic isometric projection is locked in the renderer; no cameraType control exists.
- $('gridSize').onchange=()=>{world.grid=finite($('gridSize').value,1);commit();};
+ $('gridSize').onchange=()=>{world.grid=finite($('gridSize').value,1);renderer.gridSize=world.grid;commit();};
  const enableSafePreview=()=>{
   if(activeMode==='webgl'){activateSafePreview('Manually enabled');initCanvas();notify('Basic isometric preview enabled');}
   else notify('Basic mode is active. Reload to retry WebGL.');
@@ -192,6 +226,10 @@ function initInteractions(){
  $('safePreviewMobile').onclick=enableSafePreview;
  $('gridToggle').onclick=()=>{showGrid=!showGrid;renderer.gridOn=showGrid;$('gridToggle').classList.toggle('active',showGrid);};
  $('snapToggle').onclick=()=>{snapOn=!snapOn;$('snapToggle').classList.toggle('active',snapOn);};
+ $('placementRotateL').onclick=()=>changePlacementRotation(-90);
+ $('placementRotateR').onclick=()=>changePlacementRotation(90);
+ $('simulate').onclick=toggleSimulation;
+ document.querySelectorAll('[data-walk]').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();heldDirections.add(b.dataset.walk);b.setPointerCapture(e.pointerId);});for(const evt of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(evt,()=>heldDirections.delete(b.dataset.walk));});
  $('undo').onclick=undo;$('redo').onclick=redo;
  $('fit').onclick=$('cameraReset').onclick=()=>renderer.fit();
  $('focus').onclick=()=>renderer.focus(getSelected());
@@ -224,6 +262,8 @@ function initInteractions(){
  $('info').onclick=()=>showDialog('ABOUT LAIFU',`<strong>LAIFU.EXE · Independent 3D World Editor</strong><p>A new world editor built from scratch, with no Semesta code or assets.</p><p><strong>Scale:</strong> 1 door = 1 character = 2 units. 1 level = 2 doors = 4 units. Buildings are at least 4 units high.</p><p><strong>World:</strong> Y-up, actual 3D surfaces, six-sided textured cuboids for buildings/vehicles, world-heading character planes, camera-facing tree planes.</p><p><strong>Mouse:</strong> left click select/place, drag selected to move, right/middle drag pan (isometric view locked), wheel zoom. <strong>Touch:</strong> tools on left; two fingers to pinch and pan.</p><p><strong>File:</strong> JSON contains world geometry, logic metadata and embedded textures. Browser autosave is local-only; no Drive integration or Semesta dependency.</p>`,{hideConfirm:true});
  window.addEventListener('keydown',e=>{
   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
+  if(simulation){if(e.key==='Escape'){toggleSimulation();return;}const k={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'}[e.key];if(k){e.preventDefault();heldDirections.add(k);}return;}
+  if(mode==='place'&&e.key.toLowerCase()==='r'){changePlacementRotation(e.shiftKey?-90:90);return;}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}
   else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();}
   else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();removeSelected();}
@@ -231,6 +271,7 @@ function initInteractions(){
   else if(e.key.toLowerCase()==='g'){renderer.gridOn=!renderer.gridOn;}
   else if(e.key==='f'){renderer.focus(getSelected());}
  });
+ window.addEventListener('keyup',e=>{const k={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right'}[e.key];if(k)heldDirections.delete(k);});
 }
 function openDrafts(){const drafts=loadLocal(DRAFTS_KEY,{});const shade=$('dialogBody');const keys=Object.keys(drafts).sort((a,b)=>(drafts[b].savedAt||'').localeCompare(drafts[a].savedAt||''));
  const html=keys.length?keys.map(name=>`<div class="draft-row"><div><strong>${safeHTML(name)}</strong><small>${safeHTML(drafts[name].savedAt?.slice(0,16).replace('T',' ')||'')}</small></div><div><button type="button" data-load="${safeHTML(name)}">OPEN</button> <button type="button" data-remove="${safeHTML(name)}">DELETE</button></div></div>`).join(''):'<p>No saved drafts yet. Use Save City to create one.</p>';
@@ -280,9 +321,48 @@ function initCanvas(){const cv=$('world');
  cv.addEventListener('pointerup',endPointer);cv.addEventListener('pointercancel',e=>{touches.delete(e.pointerId);gesture=null;pointer=null;if(dragging)commit();dragging=false;});
  cv.addEventListener('pointerleave',()=>{if(!pointer)ghost=null;});
 }
+function changePlacementRotation(delta){
+ placementRotation=((placementRotation+delta)%360+360)%360;
+ $('placementAngle').textContent=placementRotation+'°';
+ notify('Rotation '+placementRotation+'°');
+}
+function toggleSimulation(){
+ simulation=!simulation;heldDirections.clear();ghost=null;
+ $('simulate').textContent=simulation?'■ Stop Simulation':'▶ Simulate Player';
+ $('playerPad').hidden=!simulation;
+ if(simulation){
+  let spawn=null;
+  for(const tile of world.objects.filter(o=>['sidewalk','zebra'].includes(surfaceType(o)))){
+   for(const x of [tile.x,tile.x-.5,tile.x+.5]){
+    const c=makeObject('character',x,tile.z,topOf(tile));c.width=.6;c.depth=.3;c.id='laifu-sim-player';
+    if(validatePlacement(c,world.objects).ok){spawn=c;break;}
+   }
+   if(spawn)break;
+  }
+  if(!spawn){simulation=false;$('simulate').textContent='▶ Simulate Player';$('playerPad').hidden=true;notify('Buat area trotoar/zebra kosong untuk spawn player');return;}
+  player=spawn;player.color='#eeb574';renderer.focus(player);lastMove=performance.now();
+  notify('PLAYER: WASD / Arrow / tombol arah. ESC untuk keluar');
+ }else{player=null;renderer.fit();}
+ updateStatus();
+}
+function stepSimulation(){
+ if(!player||!heldDirections.size){lastMove=performance.now();return;}
+ const now=performance.now(),dt=Math.min(.05,(now-lastMove)/1000||.016);lastMove=now;
+ const dx=(heldDirections.has('right')?1:0)-(heldDirections.has('left')?1:0);
+ const dz=(heldDirections.has('down')?1:0)-(heldDirections.has('up')?1:0);
+ if(!dx&&!dz)return;
+ const m=Math.hypot(dx,dz),speed=3,next={...player,x:player.x+dx/m*speed*dt,z:player.z+dz/m*speed*dt};
+ const surface=surfaceAtXZ(next.x,next.z,world.objects);
+ if(!surface)return;next.y=topOf(surface);
+ if(!validatePlacement(next,world.objects).ok)return;
+ player.x=next.x;player.z=next.z;player.y=next.y;
+ player.rotation=Math.abs(dx)>Math.abs(dz)?(dx>0?90:270):(dz>0?0:180);
+ renderer.camera.target=[player.x,player.y+1,player.z];
+}
 function loop(){
+ if(simulation)stepSimulation();
  try{
-  renderer.render(world.objects,selectedId,ghost);
+  renderer.render(simulation&&player?[...world.objects,player]:world.objects,simulation?player?.id:selectedId,ghost);
   if(activeMode==='webgl'&&!firstFrameValidated){
    const gl=renderer.gl,pixel=new Uint8Array(4);
    gl.readPixels(Math.floor(renderer.canvas.width/2),Math.floor(renderer.canvas.height/2),1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
@@ -307,4 +387,4 @@ function loop(){
  requestAnimationFrame(loop);
 }
 
-populateLevelOptions();$('gridSize').value=String(world.grid);initInteractions();initCanvas();renderCatalog();renderInspector();updateStatus();loop();
+populateLevelOptions();$('gridSize').value=String(world.grid);renderer.gridSize=world.grid;initInteractions();initCanvas();renderCatalog();renderInspector();updateStatus();loop();
