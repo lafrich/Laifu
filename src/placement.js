@@ -35,6 +35,7 @@ export function validatePlacement(o,others,ignoreId=null){
  const type=surfaceType(o);
  // Terrain tiles are unique occupied patches, not stackable transparent planes.
  if(type){
+  if(type==='zebra'&&!others.some(p=>p.id!==ignoreId&&surfaceType(p)==='asphalt'&&containsFootprint(p,o)&&Math.abs(topOf(p)-o.y)<.04))return {ok:false,reason:'Zebra cross harus berada di atas aspal'};
   for(const p of others){if(p.id===ignoreId||!isGroundTile(p))continue;
    if(overlapXZ(o,p)){
     // Zebra markings are allowed ONLY as a thin surface overlay on an asphalt lane.
@@ -72,6 +73,10 @@ export function resolvePlacement(candidate,others,grid=1,ignoreId=null){
  const w=axis?o.depth:o.width,d=axis?o.width:o.depth;
  o.x=snapCenter(o.x,w,grid);o.z=snapCenter(o.z,d,grid);
  const type=surfaceType(o);
+ if(type==='zebra'){
+  const support=others.find(p=>p.id!==ignoreId&&surfaceType(p)==='asphalt'&&containsFootprint(p,o));
+  if(support)o.y=topOf(support);
+ }
  const needed=o.kind==='tree'?['grass']:o.kind==='vehicle'?['asphalt']:o.kind==='character'?['sidewalk','zebra']:null;
  if(needed){
   const supports=others.filter(p=>p.id!==ignoreId&&needed.includes(surfaceType(p))&&containsFootprint(p,o));
