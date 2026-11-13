@@ -38,7 +38,7 @@ export const PRESETS = [
  {id:"tree-small",label:"TREE / SMALL PLANE",category:"Planes",kind:"tree",width:2,depth:0.03,height:3.5,color:"#8daf88",description:"Camera-facing vegetation plane"},
  {id:"tree",label:"TREE / MEDIUM PLANE",category:"Planes",kind:"tree",width:3,depth:0.03,height:6,color:"#70a988",description:"Camera-facing vegetation plane"},
  {id:"tree-large",label:"TREE / LARGE PLANE",category:"Planes",kind:"tree",width:5,depth:0.03,height:10,color:"#5f9878",description:"Tall vegetation plane"},
- {id:"character",label:"CHARACTER / PLANE",category:"Planes",kind:"character",width:1,depth:0.03,height:2,color:"#d19d8e",description:"1 door = 2u · camera-facing plane"},
+ {id:"character",label:"CHARACTER / PLANE",category:"Planes",kind:"character",width:1,depth:0.03,height:2,color:"#d19d8e",description:"1 door = 2u · world-facing character plane"},
  {id:"prop",label:"PROP / BOX",category:"Props",kind:"prop",width:1.5,depth:1.5,height:1.5,color:"#afb3c0",description:"Generic editable solid cuboid"},
  {id:"bench",label:"BENCH / BOX",category:"Props",kind:"prop",width:2,depth:0.8,height:0.9,color:"#ad9579",description:"Small street or park furniture"},
  {id:"lamp",label:"STREET LAMP / BOX",category:"Props",kind:"prop",width:0.5,depth:0.5,height:5,color:"#899da8",description:"Tall utility placeholder"},
@@ -141,7 +141,7 @@ export function heightForPlacement(mode,customY,ray,objects,ignoreId){
 export function pickEntity(ray,objects,billboardYaw=0){
  let closest=null;
  for(const o of objects){
-  const adjusted=boxKind(o.kind)?o:{...o,rotation:billboardYaw*180/Math.PI};
+  const adjusted=o.kind==='tree'?{...o,rotation:billboardYaw*180/Math.PI}:o;
   const distance=hitEntity(ray,adjusted);
   if(distance!==null&&(closest===null||distance<closest.distance))closest={entity:o,distance};
  }
