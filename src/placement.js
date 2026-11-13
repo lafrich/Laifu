@@ -36,7 +36,12 @@ export function validatePlacement(o,others,ignoreId=null){
  // Terrain tiles are unique occupied patches, not stackable transparent planes.
  if(type){
   for(const p of others){if(p.id===ignoreId||!isGroundTile(p))continue;
-   if(Math.abs(o.y-p.y)<.1&&overlapXZ(o,p))return {ok:false,reason:'Terrain bertabrakan: grid tanah/aspal/trotoar tidak boleh tumpang tindih'};
+   if(overlapXZ(o,p)){
+    // Zebra markings are allowed ONLY as a thin surface overlay on an asphalt lane.
+    if(type==='zebra'&&surfaceType(p)==='asphalt'&&containsFootprint(p,o)&&o.y>=topOf(p)-.04)continue;
+    if(type==='asphalt'&&surfaceType(p)==='zebra'&&containsFootprint(o,p)&&p.y>=topOf(o)-.04)continue;
+    return {ok:false,reason:'Terrain bertabrakan: aspal, rumput, dan trotoar tidak boleh tumpang tindih'};
+   }
   }
   for(const p of others){if(p.id===ignoreId||isGroundTile(p))continue;
    if(overlapXZ(o,p)&&o.y<topOf(p)-.001&&topOf(o)>p.y+.001)return {ok:false,reason:'Terrain menembus objek'};
