@@ -43,6 +43,16 @@ export class Renderer{
  screenRay(x,y){this.matrices();return rayFromViewport(x,y,this.canvas.getBoundingClientRect(),this.viewProjection);}
  drawFace(key,mvp,col,alpha,texture,brightness=1,isCharacter=false){const gl=this.gl,p=this.faceBuffers[key];gl.bindBuffer(gl.ARRAY_BUFFER,p);gl.enableVertexAttribArray(this.attribP);gl.enableVertexAttribArray(this.attribUV);gl.vertexAttribPointer(this.attribP,3,gl.FLOAT,false,20,0);gl.vertexAttribPointer(this.attribUV,2,gl.FLOAT,false,20,12);gl.uniformMatrix4fv(this.unif.mvp,false,new Float32Array(mvp));gl.uniform4f(this.unif.color,col[0],col[1],col[2],alpha);gl.uniform1f(this.unif.shade,(faces[key]?.shade||1)*brightness);gl.uniform1f(this.unif.character,isCharacter?1:0);const cache=this.texture(texture);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,cache?.ready?cache.tex:this.white);gl.uniform1f(this.unif.has,cache?.ready?1:0);gl.drawArrays(gl.TRIANGLES,0,6);}
  modelMatrix(o,billboard=false){const rot=billboard?this.camera.yaw:(o.rotation||0)*Math.PI/180;const s=scaling(o.width,o.height,o.depth||1);return multiply(translation(o.x,o.y,o.z),multiply(rotationY(rot),s));}
+ generatedCrosswalkTexture(){
+  if(this.procedural['crosswalk:top'])return this.procedural['crosswalk:top'];
+  const canvas=document.createElement('canvas');canvas.width=128;canvas.height=64;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#53616a';ctx.fillRect(0,0,128,64);
+  ctx.fillStyle='#f9faf4';
+  for(let y=5;y<60;y+=15)ctx.fillRect(3,y,122,8);
+  this.procedural['crosswalk:top']=canvas.toDataURL('image/png');
+  return this.procedural['crosswalk:top'];
+ }
  generatedPlane(kind,direction='front'){
  const cacheKey=kind+':'+direction;
  if(this.procedural[cacheKey])return this.procedural[cacheKey];
@@ -64,6 +74,7 @@ export class Renderer{
  const facesToDraw=plane?['plane']:['front','back','right','left','top','bottom'];
  for(const face of facesToDraw){
   let texture=o.textures?.[face]||null;
+  if(o.preset==='crosswalk'&&face==='top'&&!texture)texture=this.generatedCrosswalkTexture();
   if(o.kind==='character'){
    const view=viewForHeading(o.rotation);
    texture=o.textures?.[view]||o.textures?.plane||this.generatedPlane('character',view);
