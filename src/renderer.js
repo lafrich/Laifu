@@ -1,5 +1,8 @@
 import {add,mul,norm,cross,lookAt,ortho,multiply,translation,scaling,rotationY,rayFromViewport,clamp} from './math.js';
 import {boxKind} from './world.js';
+import {isCameraBillboard,viewForHeading} from './character-direction.js';
+import {createGenesis} from './model.js';
+import {renderCharacter,croppedSprite} from './render.js';
 const VS=`attribute vec3 aPosition; attribute vec2 aUV;
 uniform mat4 uMVP; varying vec2 vUV;
 void main(){vUV=aUV;gl_Position=uMVP*vec4(aPosition,1.0);}`;
@@ -32,8 +35,36 @@ export class Renderer{
  screenRay(x,y){this.matrices();return rayFromViewport(x,y,this.canvas.getBoundingClientRect(),this.viewProjection);}
  drawFace(key,mvp,col,alpha,texture,brightness=1){const gl=this.gl,p=this.faceBuffers[key];gl.bindBuffer(gl.ARRAY_BUFFER,p);gl.enableVertexAttribArray(this.attribP);gl.enableVertexAttribArray(this.attribUV);gl.vertexAttribPointer(this.attribP,3,gl.FLOAT,false,20,0);gl.vertexAttribPointer(this.attribUV,2,gl.FLOAT,false,20,12);gl.uniformMatrix4fv(this.unif.mvp,false,new Float32Array(mvp));gl.uniform4f(this.unif.color,col[0],col[1],col[2],alpha);gl.uniform1f(this.unif.shade,(faces[key]?.shade||1)*brightness);const cache=this.texture(texture);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,cache?.ready?cache.tex:this.white);gl.uniform1f(this.unif.has,cache?.ready?1:0);gl.drawArrays(gl.TRIANGLES,0,6);}
  modelMatrix(o,billboard=false){const rot=billboard?this.camera.yaw:(o.rotation||0)*Math.PI/180;const s=scaling(o.width,o.height,o.depth||1);return multiply(translation(o.x,o.y,o.z),multiply(rotationY(rot),s));}
- generatedPlane(kind){if(this.procedural[kind])return this.procedural[kind];const c=document.createElement('canvas');c.width=64;c.height=128;const ctx=c.getContext('2d');ctx.clearRect(0,0,64,128);if(kind==='tree'){ctx.fillStyle='#765945';ctx.fillRect(26,74,13,50);ctx.fillStyle='#5c926f';ctx.beginPath();ctx.ellipse(32,48,28,43,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#8abd94';ctx.beginPath();ctx.ellipse(25,36,16,27,-.2,0,Math.PI*2);ctx.fill();}else{ctx.fillStyle='#364e70';ctx.beginPath();ctx.arc(32,20,12,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(23,39);ctx.lineTo(41,39);ctx.lineTo(47,79);ctx.lineTo(40,79);ctx.lineTo(39,124);ctx.lineTo(32,124);ctx.lineTo(31,85);ctx.lineTo(27,124);ctx.lineTo(20,124);ctx.lineTo(21,79);ctx.lineTo(17,79);ctx.closePath();ctx.fill();ctx.fillStyle='#98b2d3';ctx.fillRect(23,44,17,21);}this.procedural[kind]=c.toDataURL('image/png');return this.procedural[kind];}
- drawObject(o,selected=false,ghost=false){const billboard=!boxKind(o.kind);let m=this.modelMatrix(o,billboard),mvp=multiply(this.viewProjection,m),color=hexRgb(o.color||'#aaaaaa');if(selected)color=color.map(v=>Math.min(1,v*1.17+.06));if(ghost)color=color.map(v=>Math.min(1,v*.8+.2));let alpha=ghost?.43:(o.alpha??1);const faceNames=billboard?['plane']:['front','back','right','left','top','bottom'];for(const f of faceNames)this.drawFace(f,mvp,color,alpha,o.textures?.[f]||(billboard?(o.textures?.plane||this.generatedPlane(o.kind)):null),selected?1.05:1);}
+ generatedPlane(kind,direction='front'){
+ const cacheKey=kind+':'+direction;
+ if(this.procedural[cacheKey])return this.procedural[cacheKey];
+ if(kind==='character'){
+  this.genesisTemplate??=createGenesis();
+  const canvas=croppedSprite(renderCharacter(this.genesisTemplate,direction)).canvas;
+  this.procedural[cacheKey]=canvas.toDataURL('image/png');
+  return this.procedural[cacheKey];
+ }
+ const c=document.createElement('canvas');c.width=64;c.height=128;const ctx=c.getContext('2d');ctx.clearRect(0,0,64,128);if(kind==='tree'){ctx.fillStyle='#765945';ctx.fillRect(26,74,13,50);ctx.fillStyle='#5c926f';ctx.beginPath();ctx.ellipse(32,48,28,43,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#8abd94';ctx.beginPath();ctx.ellipse(25,36,16,27,-.2,0,Math.PI*2);ctx.fill();}else{ctx.fillStyle='#364e70';ctx.beginPath();ctx.arc(32,20,12,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(23,39);ctx.lineTo(41,39);ctx.lineTo(47,79);ctx.lineTo(40,79);ctx.lineTo(39,124);ctx.lineTo(32,124);ctx.lineTo(31,85);ctx.lineTo(27,124);ctx.lineTo(20,124);ctx.lineTo(21,79);ctx.lineTo(17,79);ctx.closePath();ctx.fill();ctx.fillStyle='#98b2d3';ctx.fillRect(23,44,17,21);}this.procedural[cacheKey]=c.toDataURL('image/png');return this.procedural[cacheKey];}
+ drawObject(o,selected=false,ghost=false){
+ const plane=!boxKind(o.kind),billboard=isCameraBillboard(o.kind);
+ // Characters use their world rotation, never the camera yaw. Trees billboard.
+ const m=this.modelMatrix(o,billboard),mvp=multiply(this.viewProjection,m);
+ let color=hexRgb(o.color||'#aaaaaa');
+ if(selected)color=color.map(v=>Math.min(1,v*1.17+.06));
+ if(ghost)color=color.map(v=>Math.min(1,v*.8+.2));
+ const alpha=ghost?.43:(o.alpha??1);
+ const facesToDraw=plane?['plane']:['front','back','right','left','top','bottom'];
+ for(const face of facesToDraw){
+  let texture=o.textures?.[face]||null;
+  if(o.kind==='character'){
+   const view=viewForHeading(o.rotation);
+   texture=o.textures?.[view]||o.textures?.plane||this.generatedPlane('character',view);
+  }else if(plane){
+   texture=texture||this.generatedPlane(o.kind);
+  }
+  this.drawFace(face,mvp,color,alpha,texture,selected?1.05:1);
+ }
+}
  drawGrid(){if(!this.gridOn)return;const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.gridBuffer);gl.enableVertexAttribArray(this.attribP);gl.vertexAttribPointer(this.attribP,3,gl.FLOAT,false,12,0);gl.disableVertexAttribArray(this.attribUV);gl.vertexAttrib2f(this.attribUV,0,0);gl.uniformMatrix4fv(this.unif.mvp,false,new Float32Array(this.viewProjection));gl.uniform4f(this.unif.color,.28,.40,.46,.22);gl.uniform1f(this.unif.has,0);gl.uniform1f(this.unif.shade,1);gl.drawArrays(gl.LINES,0,this.gridCount);}
  drawPlaneBase(){this.drawObject({kind:'platform',x:0,z:0,y:-.19,width:160,depth:160,height:.17,color:'#dce8db',alpha:1,textures:{}},false,false);}
  render(objects,selectedId,ghost){const gl=this.gl;this.matrices();const light=clamp((Math.cos((this.time-12)/12*Math.PI)+1)/2,.15,1);gl.clearColor(.59*light+.14,.71*light+.13,.81*light+.1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);this.drawPlaneBase();this.drawGrid();const opaque=objects.filter(o=>(o.alpha??1)>.98),translucent=objects.filter(o=>(o.alpha??1)<=.98);for(const o of opaque)this.drawObject(o,o.id===selectedId);gl.depthMask(false);for(const o of translucent)this.drawObject(o,o.id===selectedId);if(ghost)this.drawObject(ghost,false,true);gl.depthMask(true);}
