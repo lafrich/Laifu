@@ -6,7 +6,7 @@ import {
  CHARACTER_HEIGHT,MIN_BUILDING_HEIGHT,makeObject,newWorld,parseWorld,serializeWorld,
  heightForPlacement,surfaceAt,levelY,finite,round,snap,pickEntity,uid,boxKind
 } from './world.js';
-import {evaluatePlacement,isSurface,simulateStep,findPlayerSpawn,surfaceType} from './placement-rules.js';
+import {evaluatePlacement,validateDependents,isSurface,simulateStep,findPlayerSpawn,surfaceType} from './placement-rules.js';
 import {viewForHeading} from './character-direction.js';
 
 const $=id=>document.getElementById(id);
@@ -184,6 +184,8 @@ function moveDrag(x,y){
  const levelBase=Math.floor(Math.max(0,o.y)/LEVEL_STEP)*LEVEL_STEP;
  const result=tryCandidate(candidate,levelBase,o.id);
  if(!result.ok){placementMessage(result.reason,false);return;}
+ const dependents=validateDependents(o,result.object,world.objects,world.grid);
+ if(!dependents.ok){placementMessage(dependents.reason,false);return;}
  if(!dragging){capture();dragging=true;}
  Object.assign(o,result.object);placementMessage('✓ MOVING · COLLISION CLEAR',true);
  $('coordinates').textContent='X '+o.x+' · Y '+o.y+' · Z '+o.z;
@@ -205,6 +207,8 @@ function rotate(d){
  const candidate={...o,rotation:((o.rotation+d)%360+360)%360};
  const check=tryCandidate(candidate,Math.floor(o.y/LEVEL_STEP)*LEVEL_STEP,o.id);
  if(!check.ok){placementMessage(check.reason,false);notify(check.reason);return;}
+ const deps=validateDependents(o,check.object,world.objects,world.grid);
+ if(!deps.ok){placementMessage(deps.reason,false);notify(deps.reason);return;}
  capture();Object.assign(o,check.object);commit();placementMessage('✓ ROTATION CLEAR',true);
 }
 function rotatePlacement(d){
@@ -214,6 +218,8 @@ function rotatePlacement(d){
 }
 function removeSelected(){
  const o=getSelected();if(!o)return;
+ const deps=validateDependents(o,null,world.objects,world.grid);
+ if(!deps.ok){placementMessage(deps.reason,false);notify(deps.reason);return;}
  capture();world.objects=world.objects.filter(x=>x.id!==o.id);
  selectedId=null;commit();notify('Object deleted');
 }
@@ -225,6 +231,8 @@ function replaceSelected(){
  fresh.tags=[...old.tags];fresh.actions=[...old.actions];fresh.notes=old.notes;
  const checked=tryCandidate(fresh,Math.floor(old.y/LEVEL_STEP)*LEVEL_STEP,old.id);
  if(!checked.ok){placementMessage(checked.reason,false);notify(checked.reason);return;}
+ const deps=validateDependents(old,checked.object,world.objects,world.grid);
+ if(!deps.ok){placementMessage(deps.reason,false);notify(deps.reason);return;}
  capture();const i=world.objects.indexOf(old);world.objects[i]=checked.object;
  commit();notify('Replaced · zoning and collisions validated');
 }
@@ -270,6 +278,8 @@ function editProperty(key,value){
    placementMessage(validated.reason,false);
    notify('CHANGE DENIED · '+validated.reason);renderInspector();return;
   }
+  const deps=validateDependents(o,validated.object,world.objects,world.grid);
+  if(!deps.ok){placementMessage(deps.reason,false);notify(deps.reason);renderInspector();return;}
   Object.assign(draft,validated.object);
  }
  capture();Object.assign(o,draft);commit();
