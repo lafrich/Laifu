@@ -29,7 +29,7 @@ export class CanvasIsoRenderer {
   if(stroke){ctx.lineWidth=1.5;ctx.strokeStyle=stroke;ctx.stroke();}
   ctx.restore();
  }
- point(o,x,y,z){const r=(o.kind==='tree'||o.kind==='character'?ISO_YAW:(o.rotation||0)*Math.PI/180),c=Math.cos(r),s=Math.sin(r);return [o.x+x*c+z*s,o.y+y,o.z-x*s+z*c];}
+ point(o,x,y,z){const r=(o.kind==='tree'?ISO_YAW:(o.rotation||0)*Math.PI/180),c=Math.cos(r),s=Math.sin(r);return [o.x+x*c+z*s,o.y+y,o.z-x*s+z*c];}
  shade(hex,scale){const n=parseInt((hex||'#879aab').slice(1),16);const rgb=[(n>>16)&255,(n>>8)&255,n&255].map(x=>Math.max(0,Math.min(255,Math.round(x*scale))));return 'rgb('+rgb.join(',')+')';}
  faces(o,selected=false,ghost=false){
   const x=o.width/2,z=o.depth/2,y=o.height;
