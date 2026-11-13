@@ -182,7 +182,7 @@ function initInteractions(){
  function setCatalogView(){for(const id of ['listView','gridView'])$(id).classList.toggle('active',(id==='gridView')===assetGrid);renderCatalog();}
  document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
  $('placementLevel').onchange=setLevelControl;
- $('cameraType').onchange=()=>{renderer.camera.ortho=$('cameraType').value==='ortho';};
+ // Orthographic isometric projection is locked in the renderer; no cameraType control exists.
  $('gridSize').onchange=()=>{world.grid=finite($('gridSize').value,1);commit();};
  const enableSafePreview=()=>{
   if(activeMode==='webgl'){activateSafePreview('Manually enabled');initCanvas();notify('Basic isometric preview enabled');}
