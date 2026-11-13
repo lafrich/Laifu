@@ -1,5 +1,6 @@
 import {FRAME,VIEWS,PARTS,PALETTE,LAIFU_SCALE} from './constants.js';
 import {SKIN_TOKENS,DEFAULT_SKIN_KEY,normalizeSkinKey,convertLegacySkinPixels} from './skin.js';
+import {normalizeEmotion} from './emotion.js';
 const key=(x,y)=>`${x},${y}`;
 const partById=id=>PARTS.find(p=>p.id===id);
 export function createPart(def){return {id:def.id,label:def.label,parent:def.parent,pivot:[...def.pivot],angle:0,offset:[0,0],visible:true,locked:false,z:def.z,pixels:{}};}
@@ -87,7 +88,7 @@ export function createGenesis(){const views={};for(const view of VIEWS){const pa
  rect(p.footL,23,102,32,107,shoe);rect(p.footR,32,102,42,107,shoe);
  views[view]={parts};
  }
- return {format:'laifu.character.v1',name:'Genesis 01',genesis:'male',skinKey:{...DEFAULT_SKIN_KEY},faceRef:null,appearance:{source:'separate-emotion-overlay'},frame:{...FRAME},scale:{...LAIFU_SCALE},views,animations:{idle:[{frame:0,angles:{}}],walk:[{frame:0,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}},{frame:6,angles:{thighL:-19,thighR:19,calfL:0,calfR:8,upperArmL:14,upperArmR:-14}},{frame:12,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}}],sit:[{frame:0,angles:{thighL:-75,thighR:-75,calfL:85,calfR:85}}]},fps:12};
+ return {format:'laifu.character.v1',name:'Genesis 01',genesis:'male',skinKey:{...DEFAULT_SKIN_KEY},faceRef:null,faceOverlay:null,appearance:{source:'separate-emotion-overlay'},frame:{...FRAME},scale:{...LAIFU_SCALE},views,animations:{idle:[{frame:0,angles:{}}],walk:[{frame:0,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}},{frame:6,angles:{thighL:-19,thighR:19,calfL:0,calfR:8,upperArmL:14,upperArmR:-14}},{frame:12,angles:{thighL:19,thighR:-19,calfL:8,calfR:0,upperArmL:-14,upperArmR:14}}],sit:[{frame:0,angles:{thighL:-75,thighR:-75,calfL:85,calfR:85}}]},fps:12};
 }
 export function normalizeCharacter(data){
  if(!data||data.format!=='laifu.character.v1')throw new Error('Format karakter bukan laifu.character.v1');
@@ -118,6 +119,7 @@ export function normalizeCharacter(data){
  // Existing hardcoded skin shades are upgraded to color slots in every view.
  convertLegacySkinPixels(data);
  if(!('faceRef' in data))data.faceRef=null;
+ if(data.faceOverlay)data.faceOverlay=normalizeEmotion(data.faceOverlay);
  return data;
 }
 export function getPart(character,view,id){return character.views[view].parts.find(p=>p.id===id);}
