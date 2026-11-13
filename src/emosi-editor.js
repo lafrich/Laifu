@@ -48,10 +48,11 @@ const canvas=$('emoCanvas'),preview=$('emoPreview');
 function checker(ctx){for(let y=0;y<FRAME.height;y+=8)for(let x=0;x<FRAME.width;x+=8){ctx.fillStyle=(x/8+y/8)%2?'#253242':'#344251';ctx.fillRect(x,y,8,8);}}
 function draw(){
  const e=emotion();if(!e)return;
+ const guideBody=previewBody.faceOverlay?{...previewBody,faceOverlay:null}:previewBody;
  const ctx=canvas.getContext('2d');
  canvas.width=FRAME.width*zoom;canvas.height=FRAME.height*zoom;canvas.style.width=canvas.width+'px';canvas.style.height=canvas.height+'px';
  ctx.imageSmoothingEnabled=false;ctx.scale(zoom,zoom);checker(ctx);
- if(guide){ctx.save();ctx.globalAlpha=.64;drawCharacter(ctx,previewBody,view);ctx.restore();}
+ if(guide){ctx.save();ctx.globalAlpha=.64;drawCharacter(ctx,guideBody,view);ctx.restore();}
  drawEmotionFrame(ctx,e,view,frame);
  if(grid){ctx.save();ctx.strokeStyle='rgba(240,248,255,.13)';ctx.lineWidth=1/zoom;
   for(let x=0;x<=FRAME.width;x++){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,FRAME.height);ctx.stroke();}
@@ -65,7 +66,7 @@ function draw(){
  const p=preview.getContext('2d');p.setTransform(1,0,0,1,0,0);p.clearRect(0,0,preview.width,preview.height);p.imageSmoothingEnabled=false;
  p.fillStyle='#263549';p.fillRect(0,0,preview.width,preview.height);
  p.save();p.scale(preview.width/FRAME.width,preview.height/FRAME.height);
- drawCharacter(p,previewBody,view);drawEmotionFrame(p,e,view,frame);p.restore();
+ drawCharacter(p,guideBody,view);drawEmotionFrame(p,e,view,frame);p.restore();
  $('emoFrameLabel').textContent=String(frame+1)+'/'+e.frameCount;
 }
 function renderInspector(){
