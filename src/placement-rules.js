@@ -176,7 +176,7 @@ export function validateDependents(original,replacement,objects,grid=1){
   const before=evaluatePlacement(o,objects,{grid,snapEnabled:false,ignoreId:o.id,levelBase});
   if(!before.ok)continue; // preserve older worlds without blocking unrelated edits
   const updated=evaluatePlacement(o,after,{grid,snapEnabled:false,ignoreId:o.id,levelBase});
-  if(!updated.ok)return {ok:false,reason:'Permukaan masih menopang '+label(o)+'. Geser objek di atasnya dahulu.'};
+  if(!updated.ok||Math.abs(updated.object.y-o.y)>.02)return {ok:false,reason:'Permukaan masih menopang '+label(o)+'. Geser objek di atasnya dahulu.'};
  }
  return {ok:true};
 }
