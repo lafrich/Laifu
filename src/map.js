@@ -18,10 +18,10 @@ scene.add(new THREE.HemisphereLight('#ffffff','#7c8791',2.2));
 const addBox=(w,h,d,x,y,z,color)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color}));o.position.set(x,y,z);scene.add(o);return o;};
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(100,100),new THREE.MeshLambertMaterial({color:'#879a91'}));ground.rotation.x=-Math.PI/2;ground.position.y=-.025;scene.add(ground);
 const grid=new THREE.GridHelper(42,42,'#65766f','#8ca096');grid.position.y=.002;scene.add(grid);
-addBox(4,2,4,-3,1,-3,'#6d8585'); // first raised platform's top is world Y=2
+addBox(4,1.9,4,-3,.95,-3,'#6d8585'); // body ends at Y=1.9, cap ends exactly at Y=2
 addBox(2.1,LAIFU_SCALE.minBuildingHeight,2.1,3,1,-2,'#c2a984'); // min building = 2
 const door=addBox(.7,LAIFU_SCALE.doorUnits,.08,3,.5,-.90,'#283c55');door.userData.kind='door';
-const stepTop=addBox(4,.10,4,-3,2.05,-3,'#698c96');
+const stepTop=addBox(4,.10,4,-3,1.95,-3,'#698c96'); // top surface exactly Y=2
 const rulerGeometry=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(5,0,1),new THREE.Vector3(5,2,1)]);const ruler=new THREE.Line(rulerGeometry,new THREE.LineBasicMaterial({color:'#e8f0b2'}));scene.add(ruler);
 const chars=[];function addChar(x,z,lv=0){const mesh=createCharacterPlane(character,view);placeCharacterPlane(mesh,x,z,lv);mesh.renderOrder=4;scene.add(mesh);chars.push(mesh);return mesh;}
 addChar(0,1,0);addChar(-3,-3,1);
