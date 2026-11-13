@@ -1,7 +1,7 @@
 import {add,mul,lookAt,ortho,multiply,transformPoint,rayFromViewport,clamp} from './math.js';
 import {ISO_YAW,ISO_PITCH} from './renderer.js';
 import {boxKind} from './world.js';
-import {groundGridSegments,surfaceGridSegments} from './grid-system.js';
+import {groundGridSegments,surfaceGridSegments,crosswalkStripePolygons} from './grid-system.js';
 import {surfaceType} from './placement-rules.js';
 
 // CPU-only isometric fallback. Preserves X/Y/Z, object dimensions, and placement rays.
@@ -67,7 +67,11 @@ export class CanvasIsoRenderer {
   if(ghost)polygons.push(...this.faces(ghost,false,true));
   polygons.sort((a,b)=>b.distance-a.distance);
   for(const f of polygons){
-   this.path(f.verts,f.fill,f.stroke,f.alpha);
+   this.path(f.verts,f.terrainTop?.preset==='crosswalk'?'#55646c':f.fill,f.stroke,f.alpha);
+   if(f.terrainTop?.preset==='crosswalk'){
+    for(const corners of crosswalkStripePolygons(f.terrainTop))
+     this.path(corners,'#f7f9ef',null,f.alpha);
+   }
    if(f.terrainTop&&this.gridOn){
     ctx.save();ctx.strokeStyle='rgba(18,61,79,.60)';ctx.lineWidth=1;
     for(const [a,b]of surfaceGridSegments(f.terrainTop,this.gridStep)){
