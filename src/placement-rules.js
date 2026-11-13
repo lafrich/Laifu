@@ -82,7 +82,7 @@ function nearestSupportingSurfaces(candidate,existing,allowed,levelBase){
  }
  const max=Math.max(...picked.map(topOf)),min=Math.min(...picked.map(topOf));
  if(max-min>.45)return null; // no unexpected floating / large step
- return {top:max,surfaces:picked};
+ return {top:topOf(picked[0]),surfaces:picked}; // the center determines foot elevation
 }
 function edgeSnap(value,extent,grid){
  const half=extent/2;
@@ -160,6 +160,25 @@ export function evaluatePlacement(input,objects,{grid=1,snapEnabled=true,ignoreI
   }
  }
  return {ok:true,reason:'SNAP OK',object:o,surface:surface||'object'};
+}
+/**
+ * A painted tile may support parked vehicles, trees, buildings or pedestrians.
+ * Reject removing/replacing/moving it if a previously valid dependent becomes
+ * unsupported. This prevents floating people and cars after editing a road.
+ */
+export function validateDependents(original,replacement,objects,grid=1){
+ if(!isSurface(original))return {ok:true};
+ const after=objects.filter(o=>o.id!==original.id);
+ if(replacement)after.push(replacement);
+ for(const o of objects){
+  if(o.id===original.id||!footprintIntersects(o,original))continue;
+  const levelBase=Math.floor(Math.max(0,o.y)/4)*4;
+  const before=evaluatePlacement(o,objects,{grid,snapEnabled:false,ignoreId:o.id,levelBase});
+  if(!before.ok)continue; // preserve older worlds without blocking unrelated edits
+  const updated=evaluatePlacement(o,after,{grid,snapEnabled:false,ignoreId:o.id,levelBase});
+  if(!updated.ok)return {ok:false,reason:'Permukaan masih menopang '+label(o)+'. Geser objek di atasnya dahulu.'};
+ }
+ return {ok:true};
 }
 export function simulateStep(player,dx,dz,objects,{grid=1}={}){
  const candidate={...player,x:round(player.x+dx),z:round(player.z+dz)};
