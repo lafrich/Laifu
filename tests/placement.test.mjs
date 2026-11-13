@@ -49,7 +49,7 @@ test('grid edges align for odd-width rotated terrain, and collision follows 90°
  assert.equal(aligned.z,2);
  const rotated=snapObject({...a,rotation:90},1,true);
  assert.equal(rotated.x,2);
- assert.equal(rotated.z,2.5);
+ assert.equal(rotated.z,1.5); // nearest valid half-cell to requested z=1.9
  const car=makeObject('vehicle',0,0);
  car.width=2;car.depth=4;
  const second={...car,x:2.4,z:0,rotation:90};
