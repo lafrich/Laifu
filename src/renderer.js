@@ -58,7 +58,7 @@ export class Renderer{
  const m=this.modelMatrix(o,billboard),mvp=multiply(this.viewProjection,m);
  let color=hexRgb(o.color||'#aaaaaa');
  if(selected)color=color.map(v=>Math.min(1,v*1.17+.06));
- if(ghost)color=color.map(v=>Math.min(1,v*.8+.2));
+ if(ghost)color=o.invalid?[1,.19,.22]:color.map(v=>Math.min(1,v*.8+.2));
  const alpha=ghost?.43:(o.alpha??1);
  const facesToDraw=plane?['plane']:['front','back','right','left','top','bottom'];
  for(const face of facesToDraw){
