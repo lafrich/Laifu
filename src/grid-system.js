@@ -2,7 +2,7 @@ import {surfaceType} from './placement-rules.js';
 import {round,topOf} from './world.js';
 
 export const GRID_MIN=.25;
-export const GRID_MAX=4;
+export const GRID_MAX=8;
 export const gridStep=value=>Math.min(GRID_MAX,Math.max(GRID_MIN,Number(value)||1));
 
 /**
