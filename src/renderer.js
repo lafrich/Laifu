@@ -1,5 +1,6 @@
 import {add,mul,norm,cross,lookAt,ortho,multiply,translation,scaling,rotationY,rayFromViewport,clamp} from './math.js';
-import {boxKind} from './world.js';
+import {boxKind,topOf} from './world.js';
+import {isGroundTile} from './placement.js';
 import {isCameraBillboard,viewForHeading} from './character-direction.js';
 import {createGenesis} from './model.js';
 import {renderCharacter,croppedSprite} from './render.js';
@@ -26,10 +27,16 @@ export const ISO_PITCH = Math.atan(1 / Math.sqrt(2));
 export class Renderer{
  constructor(canvas){this.canvas=canvas;const gl=canvas.getContext('webgl',{antialias:true,alpha:false,preserveDrawingBuffer:false});if(!gl)throw Error('Browser ini tidak mendukung WebGL.');this.gl=gl;this.program=program(gl);gl.useProgram(this.program);this.attribP=gl.getAttribLocation(this.program,'aPosition');this.attribUV=gl.getAttribLocation(this.program,'aUV');this.unif={mvp:gl.getUniformLocation(this.program,'uMVP'),color:gl.getUniformLocation(this.program,'uColor'),shade:gl.getUniformLocation(this.program,'uShade'),tex:gl.getUniformLocation(this.program,'uTexture'),has:gl.getUniformLocation(this.program,'uHasTexture'),character:gl.getUniformLocation(this.program,'uCharacterPlane')};gl.uniform1i(this.unif.tex,0);this.faceBuffers={};for(const [k,v] of Object.entries(faces)){const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,v.data,gl.STATIC_DRAW);this.faceBuffers[k]=b;}
  this.textureCache=new Map();this.procedural={};this.white=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.white);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));this.setupTex();
- this.camera={target:[0,0,0],yaw:ISO_YAW,pitch:ISO_PITCH,distance:40,ortho:true};this.viewProjection=null;this.eye=null;this.gridOn=true;this.showLabels=true;this.time=9;this.gridBuffer=gl.createBuffer();this.gridCount=0;this.gridSize=80;this.buildGrid();gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);}
+ this.camera={target:[0,0,0],yaw:ISO_YAW,pitch:ISO_PITCH,distance:40,ortho:true};this.viewProjection=null;this.eye=null;this.gridOn=true;this.showLabels=true;this.time=9;this.gridBuffer=gl.createBuffer();this.tileGridBuffer=gl.createBuffer();this.gridCount=0;this.gridSize=1;this.buildGrid();gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);}
  setupTex(){const gl=this.gl;gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);}
  texture(url){if(!url)return null;if(this.textureCache.has(url))return this.textureCache.get(url);const gl=this.gl,tex=gl.createTexture(),entry={tex,ready:false};this.textureCache.set(url,entry);const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{gl.bindTexture(gl.TEXTURE_2D,tex);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,img);this.setupTex();entry.ready=true;};img.onerror=()=>{this.textureCache.delete(url);gl.deleteTexture(tex);};img.src=url;return entry;}
- buildGrid(){const data=[];const push=(a,b)=>{data.push(...a,...b)};for(let i=-this.gridSize;i<=this.gridSize;i++){push([i,-.04,-this.gridSize],[i,-.04,this.gridSize]);push([-this.gridSize,-.04,i],[this.gridSize,-.04,i]);}this.gridCount=data.length/3;const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.gridBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);}
+ buildGrid(){
+ const step=this.gridSize||1,data=[],extent=60;
+ for(let i=-extent;i<=extent+.0001;i+=step)data.push(i,.018,-extent,i,.018,extent,-extent,.018,i,extent,.018,i);
+ this.gridCount=data.length/3;this.builtGridSize=step;
+ const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.gridBuffer);
+ gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.DYNAMIC_DRAW);
+}
  resize(){const dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.floor(this.canvas.clientWidth*dpr)),h=Math.max(1,Math.floor(this.canvas.clientHeight*dpr));if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}this.gl.viewport(0,0,w,h);}
  matrices(){this.resize();const c=this.camera;c.yaw=ISO_YAW;c.pitch=ISO_PITCH;c.ortho=true;const horiz=Math.cos(c.pitch)*c.distance;this.eye=[c.target[0]+Math.sin(c.yaw)*horiz,c.target[1]+Math.sin(c.pitch)*c.distance,c.target[2]+Math.cos(c.yaw)*horiz];const view=lookAt(this.eye,c.target);const aspect=this.canvas.width/this.canvas.height;const span=c.distance*.55;const proj=ortho(-span*aspect,span*aspect,-span,span,.1,900);this.viewProjection=multiply(proj,view);return this.viewProjection;}
  screenRay(x,y){this.matrices();return rayFromViewport(x,y,this.canvas.getBoundingClientRect(),this.viewProjection);}
@@ -65,9 +72,29 @@ export class Renderer{
   this.drawFace(face,mvp,color,alpha,texture,selected?1.05:1,o.kind==='character');
  }
 }
- drawGrid(){if(!this.gridOn)return;const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.gridBuffer);gl.enableVertexAttribArray(this.attribP);gl.vertexAttribPointer(this.attribP,3,gl.FLOAT,false,12,0);gl.disableVertexAttribArray(this.attribUV);gl.vertexAttrib2f(this.attribUV,0,0);gl.uniformMatrix4fv(this.unif.mvp,false,new Float32Array(this.viewProjection));gl.uniform4f(this.unif.color,.28,.40,.46,.22);gl.uniform1f(this.unif.has,0);gl.uniform1f(this.unif.shade,1);gl.drawArrays(gl.LINES,0,this.gridCount);}
- drawPlaneBase(){this.drawObject({kind:'platform',x:0,z:0,y:-.19,width:160,depth:160,height:.17,color:'#dce8db',alpha:1,textures:{}},false,false);}
- render(objects,selectedId,ghost){const gl=this.gl;this.matrices();const light=clamp((Math.cos((this.time-12)/12*Math.PI)+1)/2,.15,1);gl.clearColor(.59*light+.14,.71*light+.13,.81*light+.1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);this.drawPlaneBase();this.drawGrid();const opaque=objects.filter(o=>(o.alpha??1)>.98),translucent=objects.filter(o=>(o.alpha??1)<=.98);for(const o of opaque)this.drawObject(o,o.id===selectedId);gl.depthMask(false);for(const o of translucent)this.drawObject(o,o.id===selectedId);if(ghost)this.drawObject(ghost,false,true);gl.depthMask(true);}
+ drawGrid(){if(!this.gridOn)return;if(this.gridSize!==this.builtGridSize)this.buildGrid();const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.gridBuffer);gl.enableVertexAttribArray(this.attribP);gl.vertexAttribPointer(this.attribP,3,gl.FLOAT,false,12,0);gl.disableVertexAttribArray(this.attribUV);gl.vertexAttrib2f(this.attribUV,0,0);gl.uniformMatrix4fv(this.unif.mvp,false,new Float32Array(this.viewProjection));gl.uniform4f(this.unif.color,.08,.19,.24,.36);gl.uniform1f(this.unif.has,0);gl.uniform1f(this.unif.character,0);gl.uniform1f(this.unif.shade,1);gl.drawArrays(gl.LINES,0,this.gridCount);}
+ drawTileGrids(objects){
+ if(!this.gridOn)return;
+ const step=this.gridSize||1,points=[];
+ for(const o of objects){
+  if(!isGroundTile(o))continue;
+  const a=(o.rotation||0)*Math.PI/180,c=Math.cos(a),ss=Math.sin(a);
+  const height=topOf(o)+.018,v=(u,w)=>[o.x+u*c+w*ss,height,o.z-u*ss+w*c];
+  for(let u=-o.width/2;u<=o.width/2+.001;u+=step)points.push(...v(u,-o.depth/2),...v(u,o.depth/2));
+  for(let w=-o.depth/2;w<=o.depth/2+.001;w+=step)points.push(...v(-o.width/2,w),...v(o.width/2,w));
+ }
+ if(!points.length)return;
+ const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.tileGridBuffer);
+ gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points),gl.DYNAMIC_DRAW);
+ gl.enableVertexAttribArray(this.attribP);gl.vertexAttribPointer(this.attribP,3,gl.FLOAT,false,12,0);
+ gl.disableVertexAttribArray(this.attribUV);gl.vertexAttrib2f(this.attribUV,0,0);
+ gl.uniformMatrix4fv(this.unif.mvp,false,new Float32Array(this.viewProjection));
+ gl.uniform4f(this.unif.color,.08,.19,.24,.40);
+ gl.uniform1f(this.unif.has,0);gl.uniform1f(this.unif.character,0);gl.uniform1f(this.unif.shade,1);
+ gl.drawArrays(gl.LINES,0,points.length/3);
+}
+drawPlaneBase(){this.drawObject({kind:'platform',x:0,z:0,y:-.19,width:160,depth:160,height:.17,color:'#dce8db',alpha:1,textures:{}},false,false);}
+ render(objects,selectedId,ghost){const gl=this.gl;this.matrices();const light=clamp((Math.cos((this.time-12)/12*Math.PI)+1)/2,.15,1);gl.clearColor(.59*light+.14,.71*light+.13,.81*light+.1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);this.drawPlaneBase();this.drawGrid();const opaque=objects.filter(o=>(o.alpha??1)>.98),translucent=objects.filter(o=>(o.alpha??1)<=.98);for(const o of opaque)this.drawObject(o,o.id===selectedId);gl.depthMask(false);for(const o of translucent)this.drawObject(o,o.id===selectedId);if(ghost)this.drawObject(ghost,false,true);gl.depthMask(true);this.drawTileGrids(objects);}
  orbit(_dx,_dy){/* Fixed isometric camera: orbit intentionally disabled. */}
  pan(dx,dy){const c=this.camera,s=c.distance*.0016;const right=[Math.cos(c.yaw),0,-Math.sin(c.yaw)],forward=[-Math.sin(c.yaw),0,-Math.cos(c.yaw)];c.target=add(c.target,add(mul(right,-dx*s),mul(forward,dy*s)));}
  zoom(delta){this.camera.distance=clamp(this.camera.distance*Math.exp(delta*.0013),8,150);}
