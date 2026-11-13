@@ -2,3 +2,15 @@
 @media(max-width:1080px){.workspace{grid-template-columns:50px 198px minmax(240px,1fr) 223px}.tools-panel{padding-left:3px;padding-right:3px}.tool{width:41px}.assets-intro{padding:9px}.asset-item{padding:7px 5px}.inspector-pane{padding-left:8px;padding-right:8px}.version{display:none}}
 @media(max-width:820px){#desktop{padding:0}.app-window{border-radius:0}.workspace{grid-template-columns:49px minmax(0,1fr)}.assets-panel,.inspector-panel{position:fixed;top:72px;bottom:30px;width:min(300px,calc(100vw - 50px));z-index:15;box-shadow:0 7px 19px #1d456844;transition:transform .2s}.assets-panel{left:49px;transform:translateX(-120%)}.assets-panel.open{transform:translateX(0)}.inspector-panel{right:0;transform:translateX(120%)}.inspector-panel.open{transform:translateX(0)}.mobile-close{display:inline}.mobile-action{display:inline-block}.canvas-toolbar{gap:5px}.canvas-toolbar select{max-width:138px}.copyright{display:none}.canvas-bottom-left{max-width:60%}}
 @media(max-width:550px){.titlebar{height:32px}.title-suffix{display:none}.menubar{height:35px;padding:3px;gap:0}.menubar button{padding:6px;font-size:10px}.workspace{grid-template-columns:44px minmax(0,1fr)}.tools-panel{padding:5px 1px}.tool{width:40px;height:43px}.canvas-header{height:28px}.canvas-header>span:last-child{font-size:8px}.active-bar{padding:6px;gap:5px}.active-mode{display:none}.scene-name{font-size:15px}.canvas-top-left{top:10px;left:10px}.canvas-top-right{right:9px;top:10px}.canvas-toolbar{min-height:66px;padding:5px}.canvas-toolbar label{font-size:9px}.canvas-toolbar .tiny-control:nth-child(3),.canvas-toolbar .tiny-control:nth-child(4),#copyObject{display:none}.canvas-bottom-left{font-size:8px;bottom:46px;max-width:90%}.statusbar{gap:9px}.statusbar #coordinates{max-width:160px;overflow:hidden;text-overflow:ellipsis}.assets-panel,.inspector-panel{top:67px;bottom:28px}.assets-panel{left:44px}.canvas-bottom-right{bottom:7px;right:8px}}
+
+
+/* Laifu mobile placement controls — grid size stays accessible on phones. */
+@media (max-width:820px){
+ .canvas-toolbar .tiny-control:nth-child(3){display:flex!important;align-items:center;gap:5px}
+ .canvas-toolbar .tiny-control:nth-child(3) select{width:70px;min-width:60px;max-width:82px}
+}
+@media (max-width:550px){
+ .canvas-toolbar .tiny-control:nth-child(3){display:flex!important}
+ .canvas-toolbar .tiny-control:nth-child(3) select{width:70px;max-width:82px}
+ .canvas-toolbar{min-height:76px;align-content:center;gap:5px}
+}
