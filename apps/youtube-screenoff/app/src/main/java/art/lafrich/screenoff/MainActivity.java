@@ -1,8 +1,6 @@
 package art.lafrich.screenoff;
 
 import android.app.Activity;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
@@ -20,126 +18,234 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import org.json.JSONArray;
 
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public final class MainActivity extends Activity {
-    private WebView browser;
+    private static final int YOUTUBE = 0;
+    private static final int MUSIC = 1;
+    private final WebView[] pages = new WebView[2];
+    private final String[] addressDrafts = {"", ""};
+    private int currentTab = YOUTUBE;
+    private boolean musicLoaded = false;
+
     private EditText address;
     private TextView hint;
+    private Button youtubeTab;
+    private Button musicTab;
+    private Button playButton;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(Color.rgb(11, 12, 17));
-        getWindow().setNavigationBarColor(Color.rgb(11, 12, 17));
+        getWindow().setStatusBarColor(0xff0b0c11);
+        getWindow().setNavigationBarColor(0xff0b0c11);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(11, 12, 17));
+        root.setBackgroundColor(0xff0b0c11);
         root.setPadding(dp(12), dp(8), dp(12), dp(8));
 
         TextView heading = new TextView(this);
-        heading.setText("YOUTUBE  /  SCREEN OFF");
+        heading.setText("SCREEN OFF");
         heading.setTextColor(Color.WHITE);
-        heading.setTextSize(17);
+        heading.setTextSize(19);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        heading.setPadding(dp(2), dp(8), 0, dp(10));
+        heading.setPadding(dp(2), dp(8), 0, dp(12));
         root.addView(heading);
+
+        LinearLayout tabRow = new LinearLayout(this);
+        tabRow.setOrientation(LinearLayout.HORIZONTAL);
+        youtubeTab = button("▶  YouTube", 0xffdc3949);
+        musicTab = button("♫  Music", 0xff262731);
+        tabRow.addView(youtubeTab, new LinearLayout.LayoutParams(0, dp(44), 1));
+        LinearLayout.LayoutParams musicTabParams = new LinearLayout.LayoutParams(0, dp(44), 1);
+        musicTabParams.leftMargin = dp(8);
+        tabRow.addView(musicTab, musicTabParams);
+        root.addView(tabRow);
+        youtubeTab.setOnClickListener(v -> switchTo(YOUTUBE));
+        musicTab.setOnClickListener(v -> switchTo(MUSIC));
 
         LinearLayout linkRow = new LinearLayout(this);
         linkRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams linkParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+        linkParams.topMargin = dp(10);
 
         address = new EditText(this);
         address.setSingleLine(true);
         address.setTextColor(Color.WHITE);
         address.setHintTextColor(0xff9397a5);
         address.setTextSize(13);
-        address.setHint("Tempel link YouTube atau ketik pencarian");
+        address.setHint("Link YouTube atau cari video");
         address.setPadding(dp(12), 0, dp(8), 0);
         address.setBackground(round(0xff20212a, 12));
         linkRow.addView(address, new LinearLayout.LayoutParams(0, dp(48), 1));
 
         Button go = button("BUKA", 0xff353846);
-        LinearLayout.LayoutParams goParams = new LinearLayout.LayoutParams(dp(73), dp(48));
+        LinearLayout.LayoutParams goParams = new LinearLayout.LayoutParams(dp(72), dp(48));
         goParams.leftMargin = dp(8);
         linkRow.addView(go, goParams);
         go.setOnClickListener(v -> navigate());
-        root.addView(linkRow);
+        root.addView(linkRow, linkParams);
 
-        browser = new WebView(this);
-        browser.setBackgroundColor(Color.BLACK);
-        browser.getSettings().setJavaScriptEnabled(true);
-        browser.getSettings().setDomStorageEnabled(true);
-        browser.getSettings().setMediaPlaybackRequiresUserGesture(true);
-        browser.setWebChromeClient(new WebChromeClient());
-        browser.setWebViewClient(new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
-                Uri uri = req.getUrl();
-                String scheme = uri.getScheme();
-                if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) return false;
-                // Browser is restricted to safe http(s); external app schemes are not executed.
-                return true;
-            }
-        });
+        FrameLayout browserHolder = new FrameLayout(this);
         LinearLayout.LayoutParams webParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1);
         webParams.topMargin = dp(10);
-        root.addView(browser, webParams);
 
-        Button play = button("▶  PUTAR AUDIO • LAYAR MATI", 0xffdc3949);
+        pages[YOUTUBE] = makeBrowser();
+        pages[MUSIC] = makeBrowser();
+        browserHolder.addView(pages[YOUTUBE], new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        browserHolder.addView(pages[MUSIC], new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        pages[MUSIC].setVisibility(View.GONE);
+        root.addView(browserHolder, webParams);
+
+        playButton = button("▶  PUTAR AUDIO • LAYAR MATI", 0xffdc3949);
         LinearLayout.LayoutParams playParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(54));
         playParams.topMargin = dp(10);
-        root.addView(play, playParams);
-        play.setOnClickListener(v -> playSelected());
+        root.addView(playButton, playParams);
+        playButton.setOnClickListener(v -> playSelected());
 
         hint = new TextView(this);
-        hint.setText("Buka video YouTube lalu tekan tombol merah. Kunci layar HP seperti biasa. Kontrol ada di notifikasi.");
         hint.setTextColor(0xffbfc1cb);
         hint.setTextSize(12);
         hint.setPadding(dp(3), dp(10), dp(3), dp(2));
         root.addView(hint);
 
         setContentView(root);
-        browser.loadUrl("https://m.youtube.com/");
+        updateTabs();
+        pages[YOUTUBE].loadUrl("https://m.youtube.com/");
         consumeSharedIntent(getIntent());
+    }
+
+    private WebView makeBrowser() {
+        WebView w = new WebView(this);
+        w.setBackgroundColor(Color.BLACK);
+        w.getSettings().setJavaScriptEnabled(true);
+        w.getSettings().setDomStorageEnabled(true);
+        w.getSettings().setMediaPlaybackRequiresUserGesture(true);
+        w.setWebChromeClient(new WebChromeClient());
+        w.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String scheme = request.getUrl().getScheme();
+                // Do not follow intent:, javascript:, file:, or other non-HTTP URLs.
+                return !("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme));
+            }
+
+            @Override public void onPageFinished(WebView view, String url) {
+                int index = view == pages[MUSIC] ? MUSIC : YOUTUBE;
+                // Don't overwrite a pasted address while someone is typing.
+                if (!address.hasFocus()) {
+                    addressDrafts[index] = url;
+                    if (currentTab == index) address.setText(url);
+                }
+            }
+        });
+        return w;
+    }
+
+    private void switchTo(int tab) {
+        if (tab != YOUTUBE && tab != MUSIC) return;
+        if (tab != currentTab) {
+            addressDrafts[currentTab] = address.getText().toString();
+            // Pause any webpage audio; the independent background media player is unaffected.
+            pauseWebAudio(pages[currentTab]);
+            pages[currentTab].onPause();
+            currentTab = tab;
+            pages[tab].setVisibility(View.VISIBLE);
+            pages[1 - tab].setVisibility(View.GONE);
+            pages[tab].onResume();
+            address.setText(addressDrafts[tab]);
+        }
+        if (tab == MUSIC && !musicLoaded) {
+            musicLoaded = true;
+            pages[MUSIC].loadUrl("https://music.youtube.com/");
+        }
+        address.clearFocus();
+        updateTabs();
+    }
+
+    private void updateTabs() {
+        boolean isMusic = currentTab == MUSIC;
+        youtubeTab.setBackground(round(!isMusic ? 0xffdc3949 : 0xff262731, 12));
+        musicTab.setBackground(round(isMusic ? 0xffdc3949 : 0xff262731, 12));
+        playButton.setText(isMusic ? "♫  PUTAR MUSIK • LAYAR MATI"
+                : "▶  PUTAR AUDIO • LAYAR MATI");
+        address.setHint(isMusic ? "Link YouTube Music atau cari lagu"
+                : "Link YouTube atau cari video");
+        hint.setText(isMusic
+                ? "Pilih lagu di YouTube Music lalu tekan tombol merah. Lagu diputar lewat pemutar audio background. Playlist otomatis belum didukung."
+                : "Buka video YouTube lalu tekan tombol merah. Kunci layar seperti biasa; kontrol ada di notifikasi.");
+    }
+
+    private WebView activeBrowser() {
+        return pages[currentTab];
     }
 
     private void navigate() {
         String value = address.getText().toString().trim();
         if (value.isEmpty()) return;
-        if (!value.startsWith("http://") && !value.startsWith("https://")) {
-            if (value.matches("(?i)^(www\\.)?(youtube\\.com|m\\.youtube\\.com|youtu\\.be)/.*")) {
+        if (!value.startsWith("https://") && !value.startsWith("http://")) {
+            if (value.matches("(?i)^(www\\.)?(m\\.|music\\.)?youtube\\.com/.*")
+                    || value.matches("(?i)^(www\\.)?youtu\\.be/.*")) {
                 value = "https://" + value;
             } else {
-                value = "https://m.youtube.com/results?search_query=" + Uri.encode(value);
+                value = currentTab == MUSIC
+                        ? "https://music.youtube.com/search?q=" + Uri.encode(value)
+                        : "https://m.youtube.com/results?search_query=" + Uri.encode(value);
             }
         }
         Uri uri = Uri.parse(value);
-        if (!"https".equalsIgnoreCase(uri.getScheme()) && !"http".equalsIgnoreCase(uri.getScheme())) {
-            toast("URL tidak didukung"); return;
+        if (!"https".equalsIgnoreCase(uri.getScheme())
+                && !"http".equalsIgnoreCase(uri.getScheme())) {
+            toast("Alamat tidak didukung");
+            return;
         }
-        browser.loadUrl(value);
+        addressDrafts[currentTab] = value;
         ((InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE))
                 .hideSoftInputFromWindow(address.getWindowToken(), 0);
         address.clearFocus();
+        activeBrowser().loadUrl(value);
     }
 
     private void playSelected() {
-        String input = address.getText().toString().trim();
-        if (isYouTubeVideo(input)) {
-            startAudio(input);
+        String typedLink = address.getText().toString().trim();
+        WebView selectedBrowser = activeBrowser();
+
+        // A newly pasted song/video link can be played without navigating first.
+        if (address.hasFocus() && isYouTubeVideo(typedLink)) {
+            startAudio(typedLink);
             return;
         }
-        browser.evaluateJavascript("(function(){return window.location.href})()", raw -> {
-            String url = browser.getUrl();
+
+        selectedBrowser.evaluateJavascript("window.location.href", raw -> {
+            String currentUrl = selectedBrowser.getUrl();
             try {
-                url = new JSONArray("[" + raw + "]").getString(0);
-            } catch (Exception ignored) {}
-            if (isYouTubeVideo(url)) startAudio(url);
-            else toast("Buka halaman video, atau tempel link video YouTube.");
+                currentUrl = new JSONArray("[" + raw + "]").getString(0);
+            } catch (Exception ignored) {
+                // WebView.getUrl() remains a fallback for older pages.
+            }
+
+            if (isYouTubeVideo(currentUrl)) {
+                startAudio(currentUrl);
+            } else if (isYouTubeVideo(typedLink)) {
+                startAudio(typedLink);
+            } else {
+                toast(currentTab == MUSIC
+                        ? "Pilih satu lagu dulu di Music (halaman watch), lalu tekan tombol merah."
+                        : "Buka video atau tempel link video YouTube terlebih dahulu.");
+            }
         });
     }
 
@@ -148,36 +254,60 @@ public final class MainActivity extends Activity {
             Uri uri = Uri.parse(link);
             String host = uri.getHost();
             if (host == null) return false;
-            host = host.toLowerCase(java.util.Locale.ROOT);
-            if ("youtu.be".equals(host)) return uri.getPathSegments().size() > 0;
+            host = host.toLowerCase(Locale.ROOT);
+            if ("youtu.be".equals(host)) return !uri.getPathSegments().isEmpty();
             if (!host.equals("youtube.com") && !host.endsWith(".youtube.com")) return false;
             String path = uri.getPath();
             return ("/watch".equals(path) && uri.getQueryParameter("v") != null)
-                || (path != null && (path.startsWith("/shorts/") || path.startsWith("/live/")));
-        } catch (Exception error) { return false; }
+                    || (path != null && (path.startsWith("/shorts/") || path.startsWith("/live/")));
+        } catch (Exception error) {
+            return false;
+        }
     }
 
-    private void startAudio(String link) {
+    private String normalizeForExtractor(String link) {
+        Uri uri = Uri.parse(link);
+        String host = uri.getHost();
+        // NewPipe uses the regular YouTube service for music.youtube.com watch URLs.
+        if (host != null && "music.youtube.com".equalsIgnoreCase(host)) {
+            return uri.buildUpon().authority("www.youtube.com").build().toString();
+        }
+        return link;
+    }
+
+    private void startAudio(String originalLink) {
+        if (!isYouTubeVideo(originalLink)) {
+            toast("Link video/lagu tidak valid.");
+            return;
+        }
+        pauseWebAudio(activeBrowser());
         Intent intent = new Intent(this, PlaybackService.class);
         intent.setAction(PlaybackService.ACTION_PLAY_URL);
-        intent.putExtra(PlaybackService.EXTRA_URL, link);
+        intent.putExtra(PlaybackService.EXTRA_URL, normalizeForExtractor(originalLink));
         startService(intent);
-        hint.setText("Memuat audio… Setelah mulai, tekan tombol power untuk mematikan layar. Kontrol dari lock screen/notifikasi.");
+        hint.setText("Memuat audio… Setelah musik mulai, tekan tombol power. Kontrol di lock screen / notifikasi.");
         toast("Memuat audio di background…");
     }
 
+    private void pauseWebAudio(WebView web) {
+        if (web == null) return;
+        web.evaluateJavascript("(function(){document.querySelectorAll('video,audio').forEach(function(el){el.pause()})})()", null);
+    }
+
     private void consumeSharedIntent(Intent intent) {
-        if (intent != null && Intent.ACTION_SEND.equals(intent.getAction())
-                && "text/plain".equals(intent.getType())) {
-            String shared = intent.getStringExtra(Intent.EXTRA_TEXT);
-            if (shared != null) {
-                java.util.regex.Matcher matcher = java.util.regex.Pattern
-                    .compile("https?://[^\\s]+").matcher(shared);
-                if (matcher.find()) shared = matcher.group();
-                address.setText(shared);
-                if (isYouTubeVideo(shared)) browser.loadUrl(shared);
-            }
-        }
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())
+                || !"text/plain".equals(intent.getType())) return;
+        String shared = intent.getStringExtra(Intent.EXTRA_TEXT);
+        if (shared == null) return;
+        Matcher matcher = Pattern.compile("https?://[^\\s]+").matcher(shared);
+        if (matcher.find()) shared = matcher.group();
+        // Some share sheets attach trailing punctuation to the URL.
+        shared = shared.replaceAll("[),.]+$", "");
+        Uri uri = Uri.parse(shared);
+        if ("music.youtube.com".equalsIgnoreCase(uri.getHost())) switchTo(MUSIC);
+        address.setText(shared);
+        addressDrafts[currentTab] = shared;
+        if (isYouTubeVideo(shared)) activeBrowser().loadUrl(shared);
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -187,12 +317,19 @@ public final class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (browser.canGoBack()) browser.goBack();
-        else super.onBackPressed();
+        if (activeBrowser().canGoBack()) {
+            activeBrowser().goBack();
+        } else if (currentTab == MUSIC) {
+            switchTo(YOUTUBE);
+        } else {
+            super.onBackPressed();
+        }
     }
 
     @Override protected void onDestroy() {
-        browser.destroy();
+        for (WebView page : pages) {
+            if (page != null) page.destroy();
+        }
         super.onDestroy();
     }
 
@@ -215,6 +352,11 @@ public final class MainActivity extends Activity {
         return d;
     }
 
-    private int dp(float v) { return (int)(getResources().getDisplayMetrics().density * v + .5f); }
-    private void toast(String msg) { Toast.makeText(this, msg, Toast.LENGTH_LONG).show(); }
+    private int dp(float v) {
+        return (int) (getResources().getDisplayMetrics().density * v + .5f);
+    }
+
+    private void toast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+    }
 }
