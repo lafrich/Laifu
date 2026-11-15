@@ -77,9 +77,13 @@ public final class PlaybackService extends MediaSessionService {
             Log.e("YouTubeScreenOff", "Cannot resolve YouTube audio", error);
             main.post(() -> {
                 if (generation.get() != requestId) return;
+                String details = error.getMessage();
+                if (details == null || details.trim().isEmpty()) details = "Tidak ada detail tambahan";
+                if (details.length() > 140) details = details.substring(0, 140) + "…";
                 Toast.makeText(this,
-                        "Audio gagal dibuka: " + error.getClass().getSimpleName()
-                            + ". Coba video publik lain / update extractor.",
+                        "Audio gagal: " + error.getClass().getSimpleName()
+                                + " — " + details
+                                + ". Coba lagu/video publik lain.",
                         Toast.LENGTH_LONG).show();
             });
         }

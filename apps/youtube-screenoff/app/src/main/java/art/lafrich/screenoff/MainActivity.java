@@ -270,6 +270,12 @@ public final class MainActivity extends Activity {
         String host = uri.getHost();
         // NewPipe uses the regular YouTube service for music.youtube.com watch URLs.
         if (host != null && "music.youtube.com".equalsIgnoreCase(host)) {
+            String videoId = uri.getQueryParameter("v");
+            // Keep only the video ID. YouTube Music includes radio / playlist metadata
+            // which is unnecessary for extracting the audio of a single track.
+            if (videoId != null && videoId.matches("[A-Za-z0-9_-]{11}")) {
+                return "https://www.youtube.com/watch?v=" + videoId;
+            }
             return uri.buildUpon().authority("www.youtube.com").build().toString();
         }
         return link;
