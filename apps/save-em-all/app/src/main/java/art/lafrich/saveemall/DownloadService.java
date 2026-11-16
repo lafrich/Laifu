@@ -128,6 +128,7 @@ public final class DownloadService extends Service {
         String title = job.optString("title", "Media");
         String effectiveUrl = url;
         VidaraResolver.Result vidara = null;
+        boolean pornhub = PornhubSupport.isSupportedHost(url);
         File stage = null;
         runningId = id;
         try {
@@ -166,13 +167,15 @@ public final class DownloadService extends Service {
             }
 
             synchronized (EngineManager.LOCK) {
-            Store.patch(this, id, null, 0, "Memulai yt-dlp, menyiapkan stream...", null, null);
+            Store.patch(this, id, null, 0, pornhub
+                    ? "PORNHUB • Mengecek video lewat yt-dlp..." : "Memulai yt-dlp, menyiapkan stream...", null, null);
             initEngine();
 
             // Metadata failures should not prevent direct media URLs from downloading.
             if (vidara == null) try {
                 YoutubeDLRequest inspect = new YoutubeDLRequest(url);
                 ProxySettings.apply(this, inspect);
+                PornhubSupport.apply(inspect, url);
                 VideoInfo info = YoutubeDL.getInstance().getInfo(inspect);
                 if (info != null && info.getTitle() != null && !info.getTitle().isEmpty()) {
                     title = info.getTitle();
@@ -187,6 +190,7 @@ public final class DownloadService extends Service {
 
             YoutubeDLRequest request = new YoutubeDLRequest(effectiveUrl);
             ProxySettings.apply(this, request);
+            PornhubSupport.apply(request, url);
             if (vidara != null) {
                 request.addOption("--referer", vidara.referer);
                 request.addOption("--add-header", "Origin:https://vidara.so");
@@ -211,6 +215,11 @@ public final class DownloadService extends Service {
                 request.addOption("--merge-output-format", "mp4");
             } else if ("720P".equals(mode)) {
                 request.addOption("-f", "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]/b");
+                request.addOption("--merge-output-format", "mp4");
+            } else if (pornhub && "BEST".equals(mode)) {
+                // Pornhub frequently serves complete HLS renditions; prefer one
+                // multiplexed MP4 before trying separated audio/video tracks.
+                request.addOption("-f", "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b/bv*+ba");
                 request.addOption("--merge-output-format", "mp4");
             } else if ("ORIGINAL".equals(mode)) {
                 request.addOption("-f", "b/bv*+ba");
@@ -245,6 +254,7 @@ public final class DownloadService extends Service {
                     Store.patch(this, id, null, 0, "Trying alternate video format...", null, null);
                     YoutubeDLRequest retry = new YoutubeDLRequest(url);
                     ProxySettings.apply(this, retry);
+                    PornhubSupport.apply(retry, url);
                     retry.addOption("--no-playlist");
                     retry.addOption("--no-mtime");
                     retry.addOption("--socket-timeout", "20");
@@ -264,7 +274,7 @@ public final class DownloadService extends Service {
         } catch (Exception e) {
             if (!"CANCELLED".equals(state(id))) {
                 Store.patch(this, id, "FAILED", -1,
-                        readableError(e), null, null);
+                        readableError(e, url), null, null);
                 postNotification("Download failed", 0);
             }
             Log.e("SaveEmAll", "Download failed: " + e.getClass().getSimpleName());
@@ -274,11 +284,14 @@ public final class DownloadService extends Service {
         }
     }
 
-    private String readableError(Exception e) {
+    private String readableError(Exception e, String url) {
         String raw = ProxySettings.redact(this, e.getMessage() == null ? e.toString() : e.getMessage());
         String m = raw.toLowerCase(Locale.ROOT);
         String advice;
-        if (m.contains("403") || m.contains("forbidden")) advice = "HTTP 403 • Link kedaluwarsa, cookies, atau akses ditolak. ";
+        if (PornhubSupport.isSupportedHost(url) && (m.contains("403") || m.contains("unavailable")
+                || m.contains("country") || m.contains("sign in") || m.contains("login")
+                || m.contains("cookies"))) advice = "Pornhub • Video mungkin tidak publik, membutuhkan akses resmi, atau dibatasi wilayah. Tidak bisa melewati proteksi situs. ";
+        else if (m.contains("403") || m.contains("forbidden")) advice = "HTTP 403 • Link kedaluwarsa, cookies, atau akses ditolak. ";
         else if (m.contains("404")) advice = "HTTP 404 • File/link tidak ditemukan. ";
         else if (m.contains("requested format")) advice = "Format tidak tersedia • Coba SOURCE atau MP3. ";
         else if (m.contains("sign in") || m.contains("login") || m.contains("cookies")) advice = "Perlu login/cookies; sumber mungkin tidak didukung. ";

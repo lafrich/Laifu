@@ -190,8 +190,8 @@ public final class MainActivity extends Activity {
         body.setPadding(dp(5), dp(12), dp(5), dp(22));
         body.setOrientation(LinearLayout.VERTICAL);
 
-        body.addView(text("VIDARA MODE / STREAM CAPTURE", 13, LCD, true));
-        TextView intro = text("Prioritas: Vidara (vidara.so, viewdara.com) • link /e/ID atau /v/ID. Streaming HLS disimpan sebagai video bila diizinkan server.", 12, SUBTLE, false);
+        body.addView(text("VIDARA + PORNHUB / STREAM CAPTURE", 13, LCD, true));
+        TextView intro = text("Vidara: gunakan link /e/ID atau /v/ID. Pornhub: tempel link halaman satu video. yt-dlp menangani stream publik yang boleh disimpan, tanpa melewati login, blokir akses, atau DRM.", 12, SUBTLE, false);
         intro.setPadding(0, dp(7), 0, dp(12));
         body.addView(intro);
 
@@ -391,10 +391,12 @@ public final class MainActivity extends Activity {
                         com.yausername.youtubedl_android.YoutubeDLRequest request =
                                 new com.yausername.youtubedl_android.YoutubeDLRequest(url);
                         ProxySettings.apply(this, request);
+                        PornhubSupport.apply(request, url);
                         info = YoutubeDL.getInstance().getInfo(request);
                     }
                     String title = info == null ? null : info.getTitle();
-                    result = "MEDIA DETECTED\n\n" + (title == null ? Uri.parse(url).getHost() : title);
+                    result = (PornhubSupport.isSupportedHost(url) ? "PORNHUB VIDEO DETECTED" : "MEDIA DETECTED")
+                            + "\n\n" + (title == null ? Uri.parse(url).getHost() : title);
                 }
                 found = true;
             } catch (Exception e) {

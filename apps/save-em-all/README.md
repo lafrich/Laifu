@@ -1,4 +1,4 @@
-# Save em all — by Lafrich (v0.4.0)
+# Save em all — by Lafrich (v0.5.0)
 
 Android stream and media downloader. Independent application in the Laifu repository,
 using original retro Winamp-inspired dark-metal panels, green LCD, compact controls
@@ -50,3 +50,10 @@ dependency. Distribution of compiled APKs must comply with applicable licenses.
 - Analyze previews identify Vidara and display the stream title/filecode. MP3 and 720p supported where HLS offers formats.
 - No Vidara upload API key, account impersonation or DRM bypass. Authenticated, encrypted, private, deleted and site-blocked streams remain unavailable. Vidara.com is a *different* chemicals company and is not the video-hosting site.
 - Public endpoint data format grounded in open source StreamFlow vidara/master_link.py. Live Vidara stream download must still be tested on a real Android phone.
+
+## v0.5.0: Pornhub yt-dlp integration
+- Recognizes Pornhub and its known subdomains for single-video page URLs; shows a Pornhub-specific analyze state while keeping Vidara's resolver untouched.
+- Uses yt-dlp's official PornHub extractor with normal browser referer, user-agent, and language headers for analysis, downloads, and format fallback.
+- For BEST mode, prefers a complete MP4/HLS rendition before separate A/V tracks. Existing 720p, MP3, original, queued downloads, and proxy settings remain available.
+- Clearer failures when content is unavailable, restricted, or login-gated. No private API scraping, cookie stealing, account impersonation, age/region bypass or DRM circumvention.
+- Real playback/download success depends on the specific public video, current extractor, and network; an APK build does not confirm live site access.
