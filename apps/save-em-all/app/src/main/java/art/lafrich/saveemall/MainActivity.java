@@ -190,8 +190,8 @@ public final class MainActivity extends Activity {
         body.setPadding(dp(5), dp(12), dp(5), dp(22));
         body.setOrientation(LinearLayout.VERTICAL);
 
-        body.addView(text("URL EXTRACTOR / STREAM CAPTURE", 13, LCD, true));
-        TextView intro = text("Paste a link from a supported site. Save videos, music, HLS or DASH streams to your phone.", 12, SUBTLE, false);
+        body.addView(text("VIDARA MODE / STREAM CAPTURE", 13, LCD, true));
+        TextView intro = text("Prioritas: Vidara (vidara.so, viewdara.com) • link /e/ID atau /v/ID. Streaming HLS disimpan sebagai video bila diizinkan server.", 12, SUBTLE, false);
         intro.setPadding(0, dp(7), 0, dp(12));
         body.addView(intro);
 
@@ -378,16 +378,24 @@ public final class MainActivity extends Activity {
             String result;
             boolean found = false;
             try {
-                VideoInfo info;
-                synchronized (EngineManager.LOCK) {
-                    EngineManager.initialize(getApplicationContext());
-                    com.yausername.youtubedl_android.YoutubeDLRequest request =
-                            new com.yausername.youtubedl_android.YoutubeDLRequest(url);
-                    ProxySettings.apply(this, request);
-                    info = YoutubeDL.getInstance().getInfo(request);
+                if (VidaraResolver.wrongDomain(url)) {
+                    throw new IllegalArgumentException("vidara.com adalah situs perusahaan. Untuk host video gunakan vidara.so atau viewdara.com.");
                 }
-                String title = info == null ? null : info.getTitle();
-                result = "MEDIA DETECTED\n\n" + (title == null ? Uri.parse(url).getHost() : title);
+                if (VidaraResolver.isSupportedHost(url)) {
+                    VidaraResolver.Result media = VidaraResolver.resolve(this, url);
+                    result = "VIDARA STREAM FOUND\n\n" + media.title + "\nHLS • " + media.filecode;
+                } else {
+                    VideoInfo info;
+                    synchronized (EngineManager.LOCK) {
+                        EngineManager.initialize(getApplicationContext());
+                        com.yausername.youtubedl_android.YoutubeDLRequest request =
+                                new com.yausername.youtubedl_android.YoutubeDLRequest(url);
+                        ProxySettings.apply(this, request);
+                        info = YoutubeDL.getInstance().getInfo(request);
+                    }
+                    String title = info == null ? null : info.getTitle();
+                    result = "MEDIA DETECTED\n\n" + (title == null ? Uri.parse(url).getHost() : title);
+                }
                 found = true;
             } catch (Exception e) {
                 result = "PREVIEW UNAVAILABLE\n\nTry DOWNLOAD directly. " + shortText(ProxySettings.redact(this, e.getMessage()), 115);

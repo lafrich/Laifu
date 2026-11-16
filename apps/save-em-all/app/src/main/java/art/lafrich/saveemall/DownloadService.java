@@ -126,6 +126,8 @@ public final class DownloadService extends Service {
         String url = job.optString("url");
         String mode = job.optString("mode", "BEST");
         String title = job.optString("title", "Media");
+        String effectiveUrl = url;
+        VidaraResolver.Result vidara = null;
         File stage = null;
         runningId = id;
         try {
@@ -150,12 +152,25 @@ public final class DownloadService extends Service {
                 return;
             }
 
+            // Vidara is not a normal yt-dlp page extractor: its player resolves an
+            // HLS manifest via a public POST /api/stream call with a filecode.
+            if (VidaraResolver.wrongDomain(url)) {
+                throw new IllegalArgumentException("vidara.com bukan situs video. Coba link dari vidara.so atau viewdara.com.");
+            }
+            if (VidaraResolver.isSupportedHost(url)) {
+                Store.patch(this, id, null, 0, "VIDARA • Mencari filecode dan HLS stream...", null, null);
+                vidara = VidaraResolver.resolve(this, url);
+                effectiveUrl = vidara.streamUrl;
+                title = vidara.title;
+                Store.patch(this, id, null, 1, "VIDARA • Stream ditemukan; memulai download...", title, null);
+            }
+
             synchronized (EngineManager.LOCK) {
             Store.patch(this, id, null, 0, "Memulai yt-dlp, menyiapkan stream...", null, null);
             initEngine();
 
             // Metadata failures should not prevent direct media URLs from downloading.
-            try {
+            if (vidara == null) try {
                 YoutubeDLRequest inspect = new YoutubeDLRequest(url);
                 ProxySettings.apply(this, inspect);
                 VideoInfo info = YoutubeDL.getInstance().getInfo(inspect);
@@ -170,8 +185,13 @@ public final class DownloadService extends Service {
             stage = new File(base, "staging/" + id);
             if (!stage.isDirectory() && !stage.mkdirs()) throw new IllegalStateException("Tidak bisa membuat folder sementara");
 
-            YoutubeDLRequest request = new YoutubeDLRequest(url);
+            YoutubeDLRequest request = new YoutubeDLRequest(effectiveUrl);
             ProxySettings.apply(this, request);
+            if (vidara != null) {
+                request.addOption("--referer", vidara.referer);
+                request.addOption("--add-header", "Origin:https://vidara.so");
+                request.addOption("--user-agent", "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36");
+            }
             request.addOption("--no-playlist");
             request.addOption("--no-mtime");
             request.addOption("--socket-timeout", "20");
@@ -182,6 +202,13 @@ public final class DownloadService extends Service {
                 request.addOption("-x");
                 request.addOption("--audio-format", "mp3");
                 request.addOption("--audio-quality", "0");
+            } else if (vidara != null) {
+                if ("720P".equals(mode)) {
+                    request.addOption("-f", "b[height<=720]/best[height<=720]/best");
+                } else {
+                    request.addOption("-f", "b/bv*+ba");
+                }
+                request.addOption("--merge-output-format", "mp4");
             } else if ("720P".equals(mode)) {
                 request.addOption("-f", "bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]/b");
                 request.addOption("--merge-output-format", "mp4");
@@ -213,7 +240,7 @@ public final class DownloadService extends Service {
                 String message = formatError.getMessage() == null ? "" : formatError.getMessage().toLowerCase(Locale.ROOT);
                 // Some sources have no MP4/M4A representation. Retry with yt-dlp's
                 // native best format only when the selected format truly does not exist.
-                if ("BEST".equals(mode) && (message.contains("requested format is not available")
+                if (vidara == null && "BEST".equals(mode) && (message.contains("requested format is not available")
                         || message.contains("requested format not available"))) {
                     Store.patch(this, id, null, 0, "Trying alternate video format...", null, null);
                     YoutubeDLRequest retry = new YoutubeDLRequest(url);
@@ -255,6 +282,7 @@ public final class DownloadService extends Service {
         else if (m.contains("404")) advice = "HTTP 404 • File/link tidak ditemukan. ";
         else if (m.contains("requested format")) advice = "Format tidak tersedia • Coba SOURCE atau MP3. ";
         else if (m.contains("sign in") || m.contains("login") || m.contains("cookies")) advice = "Perlu login/cookies; sumber mungkin tidak didukung. ";
+        else if (m.contains("vidara") && m.contains("http 403")) advice = "Vidara membatasi akses stream. Pastikan link publik dan dapat diputar. ";
         else if (m.contains("unsupported url") || m.contains("no video formats")) advice = "Situs belum didukung atau bukan link video. ";
         else if (m.contains("proxy")) advice = "Masalah proxy • Coba DIRECT / RESET. ";
         else advice = "Download gagal • Periksa link dan jaringan. ";

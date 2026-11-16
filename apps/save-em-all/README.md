@@ -1,4 +1,4 @@
-# Save em all — by Lafrich (v0.3.0)
+# Save em all — by Lafrich (v0.4.0)
 
 Android stream and media downloader. Independent application in the Laifu repository,
 using original retro Winamp-inspired dark-metal panels, green LCD, compact controls
@@ -43,3 +43,10 @@ dependency. Distribution of compiled APKs must comply with applicable licenses.
 - Fallback to generic yt-dlp best format when a website lacks MP4/M4A. Added visible 'WHY FAILED? / COPY ERROR' per failed download, plus HTTP/access/format troubleshooting.
 - Automatic engine update deferred until 45 seconds of idle activity rather than blocking the initial download. Manual update remains available under LINK > ENGINE.
 - Site pages requiring account cookies, CAPTCHA/DRM, expiring URLs, and unsupported extraction can still fail; test with a supported public video and share the specific error if needed.
+
+## v0.4.0: Vidara video hosting (site-specific)
+- Vidara watch/embed links recognized on vidara.so, vidara.to, viewdara.com, vidara.fit, vidvara.fit, vidaraa.cc and mountainpages.cc.
+- Extract filecode from /e/ID, /v/ID, /embed/ID or /ID; request publicly available streaming_url from https://vidara.so/api/stream using POST JSON {filecode,device:web}, then feed HLS to yt-dlp / FFmpeg with Vidara referer and origin.
+- Analyze previews identify Vidara and display the stream title/filecode. MP3 and 720p supported where HLS offers formats.
+- No Vidara upload API key, account impersonation or DRM bypass. Authenticated, encrypted, private, deleted and site-blocked streams remain unavailable. Vidara.com is a *different* chemicals company and is not the video-hosting site.
+- Public endpoint data format grounded in open source StreamFlow vidara/master_link.py. Live Vidara stream download must still be tested on a real Android phone.
