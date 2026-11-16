@@ -51,6 +51,9 @@ public final class MainActivity extends Activity {
     private static final int YOUTUBE = 0;
     private static final int MUSIC = 1;
     private static final int PLAYER_TAB = 2;
+    private static final int HISTORY_TAB = 3;
+    private static final int LCD = 0xffc5ff79;
+    private static final int PANEL = 0xff1d2430;
 
     private final WebView[] pages = new WebView[2];
     private final String[] addressDrafts = {"", ""};
@@ -72,6 +75,9 @@ public final class MainActivity extends Activity {
     private Button youtubeTab;
     private Button musicTab;
     private Button playerTab;
+    private Button historyTab;
+    private LinearLayout historyList;
+    private ScrollView historyPage;
     private Button playButton;
     private Button playPauseBtn;
     private Button prevBtn;
@@ -101,47 +107,54 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(0xff0b0c11);
-        getWindow().setNavigationBarColor(0xff0b0c11);
+        getWindow().setStatusBarColor(0xff10151b);
+        getWindow().setNavigationBarColor(0xff10151b);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xff0b0c11);
+        root.setBackgroundColor(0xff161c25);
         root.setPadding(dp(12), dp(8), dp(12), dp(8));
 
-        TextView heading = new TextView(this);
-        heading.setText("SCREEN OFF");
-        heading.setTextColor(Color.WHITE);
-        heading.setTextSize(19);
-        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        heading.setPadding(dp(2), dp(8), 0, dp(10));
-        root.addView(heading);
+        LinearLayout brandRow = new LinearLayout(this);
+        brandRow.setGravity(Gravity.CENTER_VERTICAL);
+        brandRow.setPadding(dp(4), dp(3), dp(4), dp(11));
+        TextView heading = label("FREE YOUTUBE", 19, 0xfff0f2f6, true);
+        heading.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        brandRow.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView credit = label("by Lafrich", 11, 0xffb5c8e4, false);
+        credit.setTypeface(Typeface.MONOSPACE);
+        brandRow.addView(credit);
+        root.addView(brandRow);
 
         LinearLayout tabRow = new LinearLayout(this);
-        youtubeTab = button("▶ YouTube", 0xffdc3949);
-        musicTab = button("♫ Music", 0xff262731);
-        playerTab = button("▤ Player", 0xff262731);
+        youtubeTab = button("VIDEO", 0xff303b50);
+        musicTab = button("MUSIC", 0xff303b50);
+        playerTab = button("PLAYER", 0xff303b50);
+        historyTab = button("HISTORY", 0xff303b50);
         tabRow.addView(youtubeTab, tabParams(0));
-        tabRow.addView(musicTab, tabParams(8));
-        tabRow.addView(playerTab, tabParams(8));
+        tabRow.addView(musicTab, tabParams(5));
+        tabRow.addView(playerTab, tabParams(5));
+        tabRow.addView(historyTab, tabParams(5));
         root.addView(tabRow);
         youtubeTab.setOnClickListener(v -> switchTo(YOUTUBE));
         musicTab.setOnClickListener(v -> switchTo(MUSIC));
         playerTab.setOnClickListener(v -> switchTo(PLAYER_TAB));
+        historyTab.setOnClickListener(v -> switchTo(HISTORY_TAB));
 
         linkRow = new LinearLayout(this);
         linkRow.setOrientation(LinearLayout.HORIZONTAL);
         address = new EditText(this);
         address.setSingleLine(true);
-        address.setTextColor(Color.WHITE);
-        address.setHintTextColor(0xff9397a5);
-        address.setTextSize(13);
+        address.setTextColor(LCD);
+        address.setHintTextColor(0xff82977a);
+        address.setTextSize(12);
+        address.setTypeface(Typeface.MONOSPACE);
         address.setHint("Link YouTube atau cari video");
         address.setPadding(dp(12), 0, dp(8), 0);
-        address.setBackground(round(0xff20212a, 12));
+        address.setBackground(lcd());
         linkRow.addView(address, new LinearLayout.LayoutParams(0, dp(48), 1));
 
-        Button go = button("BUKA", 0xff353846);
+        Button go = button("GO", 0xff39435a);
         LinearLayout.LayoutParams goParams = new LinearLayout.LayoutParams(dp(72), dp(48));
         goParams.leftMargin = dp(8);
         linkRow.addView(go, goParams);
@@ -169,13 +182,17 @@ public final class MainActivity extends Activity {
         detailPage.setVisibility(View.GONE);
         contentHost.addView(detailPage, new FrameLayout.LayoutParams(-1, -1));
 
+        historyPage = makeHistoryPage();
+        historyPage.setVisibility(View.GONE);
+        contentHost.addView(historyPage, new FrameLayout.LayoutParams(-1, -1));
+
         playRow = new LinearLayout(this);
         playRow.setOrientation(LinearLayout.HORIZONTAL);
-        playButton = button("▶ PUTAR", 0xffdc3949);
+        playButton = button("▶ PLAY NOW", 0xff416047);
         playRow.addView(playButton, new LinearLayout.LayoutParams(0, dp(50), 1));
         playButton.setOnClickListener(v -> playSelected(false));
 
-        Button enqueueButton = button("+ ANTREAN", 0xff303342);
+        Button enqueueButton = button("+ QUEUE", 0xff303b50);
         LinearLayout.LayoutParams queueParams = new LinearLayout.LayoutParams(0, dp(50), 0.65f);
         queueParams.leftMargin = dp(8);
         playRow.addView(enqueueButton, queueParams);
@@ -187,8 +204,9 @@ public final class MainActivity extends Activity {
         root.addView(makeMiniPlayer());
 
         hint = new TextView(this);
-        hint.setTextColor(0xff9b9fae);
-        hint.setTextSize(11);
+        hint.setTextColor(0xff99a8bd);
+        hint.setTypeface(Typeface.MONOSPACE);
+        hint.setTextSize(10);
         hint.setPadding(dp(3), dp(7), dp(3), dp(2));
         root.addView(hint);
 
@@ -213,10 +231,13 @@ public final class MainActivity extends Activity {
         detail.setOrientation(LinearLayout.VERTICAL);
         detail.setPadding(dp(16), dp(18), dp(16), dp(18));
 
-        TextView eyebrow = label("NOW PLAYING", 12, 0xffe95463, true);
+        TextView eyebrow = label("PLAYLIST EDITOR / NOW PLAYING", 12, LCD, true);
         detail.addView(eyebrow);
 
-        detailTitle = label("Belum ada lagu", 27, Color.WHITE, true);
+        detailTitle = label("NO TRACK LOADED", 23, LCD, true);
+        detailTitle.setTypeface(Typeface.MONOSPACE);
+        detailTitle.setBackground(lcd());
+        detailTitle.setPadding(dp(12), dp(12), dp(12), dp(12));
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(-1, -2);
         titleParams.topMargin = dp(18);
         detail.addView(detailTitle, titleParams);
@@ -228,19 +249,22 @@ public final class MainActivity extends Activity {
         descParams.topMargin = dp(18);
         detail.addView(desc, descParams);
 
-        TextView upnext = label("ANTREAN LAGU", 13, 0xffe95463, true);
+        TextView upnext = label("QUEUE / PLAYLIST", 13, LCD, true);
         LinearLayout.LayoutParams queueHeadingParams = new LinearLayout.LayoutParams(-1, -2);
         queueHeadingParams.topMargin = dp(34);
         detail.addView(upnext, queueHeadingParams);
 
-        queueDetails = label("Belum ada lagu dalam antrean.", 14, 0xffdadce6, false);
+        queueDetails = label("NO TRACKS", 13, LCD, false);
+        queueDetails.setTypeface(Typeface.MONOSPACE);
+        queueDetails.setBackground(lcd());
+        queueDetails.setPadding(dp(12), dp(12), dp(12), dp(12));
         queueDetails.setLineSpacing(dp(6), 1);
         LinearLayout.LayoutParams queueListParams = new LinearLayout.LayoutParams(-1, -2);
         queueListParams.topMargin = dp(12);
         detail.addView(queueDetails, queueListParams);
 
         TextView note = label(
-                "Cara membuat antrean: buka YouTube atau Music, pilih lagu, lalu ketuk '+ ANTREAN'. Lagu berikutnya diputar otomatis setelah lagu sekarang selesai.",
+                "ADD TO PLAYLIST: pilih lagu di VIDEO atau MUSIC lalu tekan + QUEUE. NEXT hanya tersedia jika ada lebih dari satu track.",
                 12, 0xff9b9fae, false);
         LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
         noteParams.topMargin = dp(28);
@@ -249,32 +273,154 @@ public final class MainActivity extends Activity {
         return scroll;
     }
 
+    private ScrollView makeHistoryPage() {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
+        outer.setPadding(dp(5), dp(10), dp(5), dp(10));
+
+        LinearLayout headingRow = new LinearLayout(this);
+        headingRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = label("RECENTLY PLAYED", 17, LCD, true);
+        title.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        headingRow.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
+        Button erase = button("CLEAR", 0xff3c4457);
+        headingRow.addView(erase, new LinearLayout.LayoutParams(dp(76), dp(38)));
+        erase.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
+                .setTitle("Hapus riwayat?")
+                .setMessage("Semua riwayat pemutaran di HP ini akan dihapus.")
+                .setNegativeButton("BATAL", null)
+                .setPositiveButton("HAPUS", (dialog, which) -> {
+                    PlaybackHistory.clear(this);
+                    refreshHistory();
+                }).show());
+        outer.addView(headingRow);
+
+        TextView explanation = label(
+                "50 LAST TRACKS   /   SAVED ON THIS DEVICE\nRESUME: LANJUT  •  RESTART: AWAL",
+                11, 0xffa4bbd6, false);
+        explanation.setTypeface(Typeface.MONOSPACE);
+        explanation.setPadding(dp(3), dp(7), dp(3), dp(12));
+        outer.addView(explanation);
+
+        historyList = new LinearLayout(this);
+        historyList.setOrientation(LinearLayout.VERTICAL);
+        outer.addView(historyList);
+        scroll.addView(outer);
+        return scroll;
+    }
+
+    private void refreshHistory() {
+        if (historyList == null) return;
+        historyList.removeAllViews();
+        java.util.List<PlaybackHistory.Entry> entries = PlaybackHistory.list(this);
+        if (entries.isEmpty()) {
+            TextView empty = label(
+                    "NO HISTORY\n\nPutar video atau musik. Riwayat akan tercatat saat audio mulai diputar.",
+                    13, LCD, false);
+            empty.setTypeface(Typeface.MONOSPACE);
+            empty.setBackground(lcd());
+            empty.setPadding(dp(16), dp(22), dp(16), dp(22));
+            historyList.addView(empty);
+            return;
+        }
+        java.text.SimpleDateFormat date =
+                new java.text.SimpleDateFormat("dd MMM  HH:mm", Locale.getDefault());
+        int number = 1;
+        for (PlaybackHistory.Entry entry : entries) {
+            LinearLayout card = new LinearLayout(this);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setBackground(lcd());
+            card.setPadding(dp(12), dp(10), dp(12), dp(12));
+
+            TextView title = label(
+                    String.format(Locale.US, "%02d  %s", number++, entry.title),
+                    13, LCD, true);
+            title.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+            title.setMaxLines(2);
+            title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            card.addView(title);
+
+            String details = date.format(new java.util.Date(entry.playedAt))
+                    + "   /   LAST POS " + formatTime(entry.positionMs);
+            TextView info = label(details, 10, 0xff8fa979, false);
+            info.setTypeface(Typeface.MONOSPACE);
+            LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(-1, -2);
+            infoParams.topMargin = dp(5);
+            card.addView(info, infoParams);
+
+            LinearLayout actions = new LinearLayout(this);
+            LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(-1, dp(40));
+            actionsParams.topMargin = dp(9);
+            Button resume = button("▶ LANJUT", 0xff416047);
+            Button restart = button("↻ AWAL", 0xff39435a);
+            Button queue = button("+ QUEUE", 0xff39435a);
+            actions.addView(resume, new LinearLayout.LayoutParams(0, dp(40), 1));
+            LinearLayout.LayoutParams restartParams = new LinearLayout.LayoutParams(0, dp(40), .8f);
+            restartParams.leftMargin = dp(5);
+            actions.addView(restart, restartParams);
+            LinearLayout.LayoutParams queueParams = new LinearLayout.LayoutParams(0, dp(40), .85f);
+            queueParams.leftMargin = dp(5);
+            actions.addView(queue, queueParams);
+            resume.setOnClickListener(v -> playHistory(entry, true, false));
+            restart.setOnClickListener(v -> playHistory(entry, false, false));
+            queue.setOnClickListener(v -> playHistory(entry, false, true));
+            card.addView(actions, actionsParams);
+
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(-1, -2);
+            cardParams.bottomMargin = dp(8);
+            historyList.addView(card, cardParams);
+        }
+    }
+
+    private void playHistory(PlaybackHistory.Entry entry, boolean resume, boolean queue) {
+        Intent i = new Intent(this, PlaybackService.class);
+        i.setAction(queue ? PlaybackService.ACTION_QUEUE_URL : PlaybackService.ACTION_PLAY_URL);
+        i.putExtra(PlaybackService.EXTRA_URL, entry.url);
+        if (resume && !queue) i.putExtra(
+                PlaybackService.EXTRA_POSITION_MS, entry.positionMs);
+        startService(i);
+        toast(queue ? "Menambahkan ke antrean…" :
+                resume ? "Melanjutkan lagu…" : "Memutar dari awal…");
+    }
+
     private LinearLayout makeMiniPlayer() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(12), dp(10), dp(12), dp(9));
-        card.setBackground(round(0xff242630, 14));
+        card.setPadding(dp(10), dp(9), dp(10), dp(10));
+        card.setBackground(metal(0xff495568, 0xff212a37));
         LinearLayout.LayoutParams outerParams = new LinearLayout.LayoutParams(-1, -2);
         outerParams.topMargin = dp(8);
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
-        miniTitle = label("Belum ada lagu", 14, Color.WHITE, true);
+        miniTitle = label("NO TRACK LOADED", 13, LCD, true);
+        miniTitle.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        miniTitle.setPadding(dp(8), dp(6), dp(8), dp(6));
         miniTitle.setSingleLine(true);
         miniTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
         head.addView(miniTitle, new LinearLayout.LayoutParams(0, -2, 1));
-        miniQueue = label("0/0", 11, 0xffb5b8c8, false);
+        miniQueue = label("00/00", 11, LCD, false);
+        miniQueue.setTypeface(Typeface.MONOSPACE);
+        miniQueue.setPadding(dp(4), dp(6), dp(8), dp(6));
         LinearLayout.LayoutParams queuePosition = new LinearLayout.LayoutParams(-2, -2);
         queuePosition.leftMargin = dp(8);
         head.addView(miniQueue, queuePosition);
+        head.setBackground(lcd());
         card.addView(head);
+
+        TextView eq = label("▂ ▅ █ ▆ ▃  · · ·    44.1 kHz   /   STEREO   /   AUDIO", 10, LCD, false);
+        eq.setTypeface(Typeface.MONOSPACE);
+        eq.setPadding(dp(8), dp(3), dp(8), 0);
+        card.addView(eq);
 
         LinearLayout timeline = new LinearLayout(this);
         timeline.setOrientation(LinearLayout.HORIZONTAL);
         progress = new SeekBar(this);
         progress.setMax(1000);
         timeline.addView(progress, new LinearLayout.LayoutParams(0, dp(32), 1));
-        timeInfo = label("00:00 / --:--", 10, 0xffb5b8c8, false);
+        timeInfo = label("00:00 / --:--", 10, LCD, false);
+        timeInfo.setTypeface(Typeface.MONOSPACE);
         timeInfo.setGravity(Gravity.CENTER_VERTICAL);
         timeline.addView(timeInfo, new LinearLayout.LayoutParams(-2, dp(32)));
         card.addView(timeline);
@@ -295,12 +441,12 @@ public final class MainActivity extends Activity {
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
-        Button backward = button("−15", 0xff353743);
-        prevBtn = button("⏮", 0xff353743);
-        playPauseBtn = button("▶", 0xffdc3949);
-        nextBtn = button("⏭", 0xff353743);
-        Button forward = button("+15", 0xff353743);
-        speedBtn = button("1×", 0xff353743);
+        Button backward = button("−15", 0xff303b50);
+        prevBtn = button("⏮", 0xff303b50);
+        playPauseBtn = button("▶", 0xff416047);
+        nextBtn = button("⏭", 0xff303b50);
+        Button forward = button("+15", 0xff303b50);
+        speedBtn = button("1×", 0xff303b50);
         Button[] all = {backward, prevBtn, playPauseBtn, nextBtn, forward, speedBtn};
         for (int i = 0; i < all.length; i++) {
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(42), 1);
@@ -482,15 +628,15 @@ public final class MainActivity extends Activity {
     }
 
     private void switchTo(int tab) {
-        if (tab < 0 || tab > PLAYER_TAB) return;
+        if (tab < 0 || tab > HISTORY_TAB) return;
         if (tab != currentTab) {
-            if (currentTab != PLAYER_TAB) {
+            if (currentTab == YOUTUBE || currentTab == MUSIC) {
                 addressDrafts[currentTab] = address.getText().toString();
                 pauseWebAudio(pages[currentTab]);
                 pages[currentTab].onPause();
             }
             currentTab = tab;
-            if (tab != PLAYER_TAB) {
+            if (tab == YOUTUBE || tab == MUSIC) {
                 lastBrowserTab = tab;
                 pages[tab].onResume();
                 address.setText(addressDrafts[tab]);
@@ -502,16 +648,23 @@ public final class MainActivity extends Activity {
         }
         address.clearFocus();
         updateTabs();
+        if (tab == HISTORY_TAB) refreshHistory();
     }
 
     private void updateTabs() {
-        youtubeTab.setBackground(round(currentTab == YOUTUBE ? 0xffdc3949 : 0xff262731, 12));
-        musicTab.setBackground(round(currentTab == MUSIC ? 0xffdc3949 : 0xff262731, 12));
-        playerTab.setBackground(round(currentTab == PLAYER_TAB ? 0xffdc3949 : 0xff262731, 12));
+        youtubeTab.setBackground(metal(currentTab == YOUTUBE ? 0xff526349 : 0xff495568,
+                currentTab == YOUTUBE ? 0xff223f2a : 0xff212a37));
+        musicTab.setBackground(metal(currentTab == MUSIC ? 0xff526349 : 0xff495568,
+                currentTab == MUSIC ? 0xff223f2a : 0xff212a37));
+        playerTab.setBackground(metal(currentTab == PLAYER_TAB ? 0xff526349 : 0xff495568,
+                currentTab == PLAYER_TAB ? 0xff223f2a : 0xff212a37));
+        historyTab.setBackground(metal(currentTab == HISTORY_TAB ? 0xff526349 : 0xff495568,
+                currentTab == HISTORY_TAB ? 0xff223f2a : 0xff212a37));
 
-        boolean browser = currentTab != PLAYER_TAB;
+        boolean browser = currentTab == YOUTUBE || currentTab == MUSIC;
         browserHolder.setVisibility(browser ? View.VISIBLE : View.GONE);
-        detailPage.setVisibility(browser ? View.GONE : View.VISIBLE);
+        detailPage.setVisibility(currentTab == PLAYER_TAB ? View.VISIBLE : View.GONE);
+        historyPage.setVisibility(currentTab == HISTORY_TAB ? View.VISIBLE : View.GONE);
         linkRow.setVisibility(browser ? View.VISIBLE : View.GONE);
         playRow.setVisibility(browser ? View.VISIBLE : View.GONE);
         pages[YOUTUBE].setVisibility(currentTab == YOUTUBE ? View.VISIBLE : View.GONE);
@@ -521,17 +674,20 @@ public final class MainActivity extends Activity {
                     ? "Link YouTube Music atau cari lagu"
                     : "Link YouTube atau cari video");
         }
-        hint.setText(currentTab == PLAYER_TAB
-                ? "Player tetap aktif saat aplikasi diminimalkan atau layar mati."
-                : "▶ PUTAR memulai lagu baru. + ANTREAN menambahkan lagu agar tombol Next aktif.");
+        hint.setText(currentTab == HISTORY_TAB
+                ? "RECENT / RESUME  •  50 LAST TRACKS  •  LOCAL"
+                : currentTab == PLAYER_TAB
+                ? "PLAYLIST EDITOR  •  BACKGROUND AUDIO: ON"
+                : "PLAY NOW = mulai lagi  /  + QUEUE = tambah ke antrean");
     }
 
     private WebView activeBrowser() {
-        return pages[currentTab == PLAYER_TAB ? lastBrowserTab : currentTab];
+        return pages[(currentTab == YOUTUBE || currentTab == MUSIC)
+                ? currentTab : lastBrowserTab];
     }
 
     private void navigate() {
-        if (currentTab == PLAYER_TAB) return;
+        if (currentTab == PLAYER_TAB || currentTab == HISTORY_TAB) return;
         String value = address.getText().toString().trim();
         if (value.isEmpty()) return;
         if (!value.startsWith("https://") && !value.startsWith("http://")) {
@@ -558,7 +714,7 @@ public final class MainActivity extends Activity {
     }
 
     private void playSelected(boolean enqueue) {
-        if (currentTab == PLAYER_TAB) {
+        if (currentTab == PLAYER_TAB || currentTab == HISTORY_TAB) {
             toast("Buka tab YouTube atau Music untuk memilih lagu.");
             return;
         }
@@ -640,7 +796,8 @@ public final class MainActivity extends Activity {
         shared = shared.replaceAll("[),.]+$", "");
         Uri uri = Uri.parse(shared);
         if ("music.youtube.com".equalsIgnoreCase(uri.getHost())) switchTo(MUSIC);
-        else if (currentTab == PLAYER_TAB) switchTo(lastBrowserTab);
+        else if (currentTab == PLAYER_TAB || currentTab == HISTORY_TAB)
+            switchTo(lastBrowserTab);
         address.setText(shared);
         addressDrafts[currentTab] = shared;
         if (isYouTubeVideo(shared)) activeBrowser().loadUrl(shared);
@@ -650,6 +807,11 @@ public final class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         consumeSharedIntent(intent);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (currentTab == HISTORY_TAB) refreshHistory();
     }
 
     @Override protected void onStart() {
@@ -669,7 +831,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (currentTab == PLAYER_TAB) {
+        if (currentTab == PLAYER_TAB || currentTab == HISTORY_TAB) {
             switchTo(lastBrowserTab);
         } else if (activeBrowser().canGoBack()) {
             activeBrowser().goBack();
@@ -695,13 +857,38 @@ public final class MainActivity extends Activity {
     private Button button(String label, int color) {
         Button b = new Button(this);
         b.setText(label);
-        b.setTextColor(Color.WHITE);
-        b.setTextSize(12);
+        b.setTextColor(0xffe9edf4);
+        b.setTextSize(10);
         b.setAllCaps(false);
-        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setBackground(round(color, 12));
+        b.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        b.setMinWidth(0);
+        b.setMinimumWidth(0);
+        b.setPadding(dp(3), 0, dp(3), 0);
+        b.setBackground(metal(color, dim(color)));
         b.setGravity(Gravity.CENTER);
         return b;
+    }
+
+    private int dim(int color) {
+        return Color.rgb((int)(Color.red(color) * .55),
+                (int)(Color.green(color) * .55),
+                (int)(Color.blue(color) * .55));
+    }
+
+    private GradientDrawable metal(int top, int bottom) {
+        GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{top, bottom});
+        d.setCornerRadius(dp(4));
+        d.setStroke(dp(1), 0xff667182);
+        return d;
+    }
+
+    private GradientDrawable lcd() {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(0xff101b12);
+        d.setStroke(dp(1), 0xff506a4b);
+        d.setCornerRadius(dp(3));
+        return d;
     }
 
     private GradientDrawable round(int color, int r) {
