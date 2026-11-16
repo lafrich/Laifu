@@ -38,15 +38,33 @@ jobs:
                           data=json.loads(raw)
                           exists=isinstance(data.get("streaming_url"),str) and data["streaming_url"].startswith("https://")
                           print("has_streaming_url:",exists, "filecode_match:",data.get("filecode")==sample)
-                          ok=ok or exists
-                          if exists:break
+                          if exists:
+                              import urllib.parse
+                              referer="https://vidara.so/e/"+sample
+                              manifest_req=urllib.request.Request(data["streaming_url"],headers={
+                                  "Referer":referer,
+                                  "Origin":"https://vidara.so",
+                                  "User-Agent":"Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36"
+                              })
+                              try:
+                                  with urllib.request.urlopen(manifest_req,timeout=20) as manifest:
+                                      sample_body=manifest.read(4096)
+                                      playlist=sample_body.lstrip().startswith(b"#EXTM3U")
+                                      print("HLS manifest HTTP:",manifest.status,
+                                            "HLS playlist:",playlist,
+                                            "type:",manifest.headers.get("Content-Type"))
+                                      ok=playlist
+                                      if playlist:break
+                              except Exception as manifest_error:
+                                  print("HLS manifest failed:",type(manifest_error).__name__,
+                                        str(manifest_error)[:180])
                       except Exception as exc:print("response_not_json:",type(exc).__name__, "length:",len(raw))
               except urllib.error.HTTPError as e:
                   print(endpoint, "HTTP",e.code, "content_type",e.headers.get("Content-Type"))
               except Exception as e:
                   print(endpoint, "network_error:",type(e).__name__,str(e)[:180])
           if not ok:
-              print("RESULT: server did not grant public HLS via automated HTTP request; Android may need in-browser flow.")
+              print("RESULT: stream endpoint or HLS manifest inaccessible from this client; Android may fail.")
               raise SystemExit(1)
-          print("RESULT: successful public HLS metadata resolution")
+          print("RESULT: public Vidara stream URL and HLS manifest accessible")
           PY
