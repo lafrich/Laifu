@@ -51,6 +51,6 @@ jobs:
             Android APK. Vidara resolver, Pornhub yt-dlp extraction for permitted public video, automatic/manual updates, and HTTP(S)/SOCKS proxy support.
             Download the APK asset directly below to install on Android 10+.
             This is a debug-signed APK; uninstall may be required if switching debug signing keys.
-          files: Save-em-all-v0.4.0.apk
+          files: Save-em-all-v0.5.0.apk
           fail_on_unmatched_files: true
           overwrite_files: true
