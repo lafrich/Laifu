@@ -8,7 +8,7 @@ on:
       - '.github/workflows/save-em-all-apk.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   android-apk:
@@ -38,3 +38,19 @@ jobs:
           name: save-em-all-debug-apk
           path: apps/save-em-all/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
+      - name: Prepare directly downloadable APK
+        run: |
+          cp apps/save-em-all/app/build/outputs/apk/debug/app-debug.apk Save-em-all-v0.2.0.apk
+      - name: Publish APK on GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: save-em-all-v0.2.0
+          name: "Save em all by Lafrich v0.2.0"
+          body: |
+            Android APK. yt-dlp automatic/manual updates and HTTP(S)/SOCKS proxy support.
+            Download the APK asset directly below to install on Android 10+.
+            This is a debug-signed APK; uninstall may be required if switching debug signing keys.
+          files: Save-em-all-v0.2.0.apk
+          fail_on_unmatched_files: true
+          overwrite_files: true
