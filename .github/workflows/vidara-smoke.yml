@@ -1,0 +1,52 @@
+name: Vidara Player Resolver Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/vidara-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test-public-vidara-player:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Probe public Vidara player API (no video downloaded)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.error
+          sample="DZ5ewUU4OgJ8" # Public example from masudranaxpert/StreamFlow test_vidara.py
+          body=json.dumps({"filecode":sample,"device":"web"}).encode()
+          ok=False
+          for endpoint in ("https://vidara.so/api/stream", "https://vidara.so/api/stream/master"):
+              request=urllib.request.Request(endpoint,body,method="POST",headers={
+                  "Content-Type":"application/json",
+                  "Accept":"application/json, */*",
+                  "Origin":"https://vidara.so",
+                  "Referer":"https://vidara.so/e/"+sample,
+                  "User-Agent":"Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
+              })
+              try:
+                  with urllib.request.urlopen(request,timeout=20) as response:
+                      raw=response.read(250_000)
+                      print(endpoint, "HTTP",response.status, "content_type",response.headers.get("Content-Type"))
+                      try:
+                          data=json.loads(raw)
+                          exists=isinstance(data.get("streaming_url"),str) and data["streaming_url"].startswith("https://")
+                          print("has_streaming_url:",exists, "filecode_match:",data.get("filecode")==sample)
+                          ok=ok or exists
+                          if exists:break
+                      except Exception as exc:print("response_not_json:",type(exc).__name__, "length:",len(raw))
+              except urllib.error.HTTPError as e:
+                  print(endpoint, "HTTP",e.code, "content_type",e.headers.get("Content-Type"))
+              except Exception as e:
+                  print(endpoint, "network_error:",type(e).__name__,str(e)[:180])
+          if not ok:
+              print("RESULT: server did not grant public HLS via automated HTTP request; Android may need in-browser flow.")
+              raise SystemExit(1)
+          print("RESULT: successful public HLS metadata resolution")
+          PY
