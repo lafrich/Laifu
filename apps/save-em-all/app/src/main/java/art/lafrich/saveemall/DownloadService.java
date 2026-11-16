@@ -78,7 +78,10 @@ public final class DownloadService extends Service {
         } else if (intent != null && ADD.equals(intent.getAction())) {
             String url = intent.getStringExtra(EXTRA_URL);
             String mode = intent.getStringExtra(EXTRA_MODE);
-            if (validUrl(url)) Store.add(this, url, mode == null ? "BEST" : mode);
+            String id = intent.getStringExtra(EXTRA_ID);
+            if (validUrl(url) && (id == null || Store.get(this, id) == null)) {
+                Store.add(this, url, mode == null ? "BEST" : mode);
+            }
         }
         drain();
         return START_STICKY;
@@ -126,14 +129,30 @@ public final class DownloadService extends Service {
         File stage = null;
         runningId = id;
         try {
-            synchronized (EngineManager.LOCK) {
-            Store.patch(this, id, "DOWNLOADING", 0, "Memeriksa versi yt-dlp", null, null);
-            postNotification("Checking yt-dlp", 0);
-            initEngine();
-            EngineManager.Result update = EngineManager.update(this, false);
-            if (!update.success) {
-                Store.patch(this, id, null, 0, "Auto-update gagal, engine yang tersedia akan dicoba", null, null);
+            Store.patch(this, id, "DOWNLOADING", 0, "Menghubungkan ke sumber video...", null, null);
+            postNotification("Connecting to media source", 0);
+
+            // Direct MP4/MP3/etc URLs are ordinary HTTP resources, not website pages.
+            // Prefer simple HTTP streaming so these work even if yt-dlp's extractor is outdated.
+            if (ProxySettings.get(this).isEmpty() && DirectTransfer.supports(url) && !"AUDIO".equals(mode)) {
+                File base = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                if (base == null) base = getCacheDir();
+                stage = new File(base, "staging/" + id);
+                File result = DirectTransfer.download(url, stage, (percent, detail) -> {
+                    if ("CANCELLED".equals(state(id))) throw new InterruptedException("Cancelled");
+                    Store.patch(this, id, null, percent, detail, null, null);
+                    postNotification("Direct download " + percent + "%", percent);
+                });
+                if ("CANCELLED".equals(state(id))) return;
+                String exported = exportMedia(result, title);
+                Store.patch(this, id, "DONE", 100, "Saved in Downloads/Save em all", title, exported);
+                postNotification("Saved: " + trim(title, 32), 100);
+                return;
             }
+
+            synchronized (EngineManager.LOCK) {
+            Store.patch(this, id, null, 0, "Memulai yt-dlp, menyiapkan stream...", null, null);
+            initEngine();
 
             // Metadata failures should not prevent direct media URLs from downloading.
             try {
@@ -188,7 +207,25 @@ public final class DownloadService extends Service {
                 }
                 return Unit.INSTANCE;
             };
-            YoutubeDL.getInstance().execute(request, id, callback);
+            try {
+                YoutubeDL.getInstance().execute(request, id, callback);
+            } catch (Exception formatError) {
+                String message = formatError.getMessage() == null ? "" : formatError.getMessage().toLowerCase(Locale.ROOT);
+                // Some sources have no MP4/M4A representation. Retry with yt-dlp's
+                // native best format only when the selected format truly does not exist.
+                if ("BEST".equals(mode) && (message.contains("requested format is not available")
+                        || message.contains("requested format not available"))) {
+                    Store.patch(this, id, null, 0, "Trying alternate video format...", null, null);
+                    YoutubeDLRequest retry = new YoutubeDLRequest(url);
+                    ProxySettings.apply(this, retry);
+                    retry.addOption("--no-playlist");
+                    retry.addOption("--no-mtime");
+                    retry.addOption("--socket-timeout", "20");
+                    retry.addOption("-o", new File(stage, "media.%(ext)s").getAbsolutePath());
+                    retry.addOption("-f", "bv*+ba/b");
+                    YoutubeDL.getInstance().execute(retry, id, callback);
+                } else throw formatError;
+            }
             } // engine lock: updater must not replace yt-dlp during a download.
             if ("CANCELLED".equals(state(id))) return;
 
@@ -199,7 +236,8 @@ public final class DownloadService extends Service {
             postNotification("Saved: " + trim(title, 32), 100);
         } catch (Exception e) {
             if (!"CANCELLED".equals(state(id))) {
-                Store.patch(this, id, "FAILED", -1, ProxySettings.redact(this, e.getMessage() == null ? e.toString() : e.getMessage()), null, null);
+                Store.patch(this, id, "FAILED", -1,
+                        readableError(e), null, null);
                 postNotification("Download failed", 0);
             }
             Log.e("SaveEmAll", "Download failed: " + e.getClass().getSimpleName());
@@ -207,6 +245,20 @@ public final class DownloadService extends Service {
             if (stage != null) clean(stage);
             runningId = null;
         }
+    }
+
+    private String readableError(Exception e) {
+        String raw = ProxySettings.redact(this, e.getMessage() == null ? e.toString() : e.getMessage());
+        String m = raw.toLowerCase(Locale.ROOT);
+        String advice;
+        if (m.contains("403") || m.contains("forbidden")) advice = "HTTP 403 • Link kedaluwarsa, cookies, atau akses ditolak. ";
+        else if (m.contains("404")) advice = "HTTP 404 • File/link tidak ditemukan. ";
+        else if (m.contains("requested format")) advice = "Format tidak tersedia • Coba SOURCE atau MP3. ";
+        else if (m.contains("sign in") || m.contains("login") || m.contains("cookies")) advice = "Perlu login/cookies; sumber mungkin tidak didukung. ";
+        else if (m.contains("unsupported url") || m.contains("no video formats")) advice = "Situs belum didukung atau bukan link video. ";
+        else if (m.contains("proxy")) advice = "Masalah proxy • Coba DIRECT / RESET. ";
+        else advice = "Download gagal • Periksa link dan jaringan. ";
+        return trim(advice + raw, 500);
     }
 
     private String state(String id) {

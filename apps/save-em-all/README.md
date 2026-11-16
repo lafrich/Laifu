@@ -1,4 +1,4 @@
-# Save em all — by Lafrich (v0.2.0)
+# Save em all — by Lafrich (v0.3.0)
 
 Android stream and media downloader. Independent application in the Laifu repository,
 using original retro Winamp-inspired dark-metal panels, green LCD, compact controls
@@ -36,3 +36,10 @@ dependency. Distribution of compiled APKs must comply with applicable licenses.
 - Automatic nightly yt-dlp binary update on app start/when downloading, checked at most every 12 hours; stable fallback when nightly is unavailable. Manual UPDATE YT-DLP NOW button shows installed version and result. Requires internet and access to GitHub releases. If unavailable, bundled engine remains usable.
 - Optional HTTP(S), SOCKS4, SOCKS5 and SOCKS5h proxy for yt-dlp metadata extraction **and actual download**. Set via LINK > ENGINE / NETWORK SETTINGS > SAVE PROXY. Credentials in URL are stored locally in private app preferences and redacted from displayed yt-dlp errors. DIRECT / RESET clears the setting.
 - Proxy applies to yt-dlp requests only. The embedded WEB browser follows Android's own network settings. A proxy never circumvents DRM, login or permissions.
+
+## v0.3.0: video download reliability
+- Queue item is saved before launching the Android foreground service; startup failures show as FAILED.
+- Explicit direct media file links (MP4, MP3, WebM and similar) use streaming HTTP download when proxy is disabled, independent of yt-dlp site support. HLS/DASH and webpages still use yt-dlp.
+- Fallback to generic yt-dlp best format when a website lacks MP4/M4A. Added visible 'WHY FAILED? / COPY ERROR' per failed download, plus HTTP/access/format troubleshooting.
+- Automatic engine update deferred until 45 seconds of idle activity rather than blocking the initial download. Manual update remains available under LINK > ENGINE.
+- Site pages requiring account cookies, CAPTCHA/DRM, expiring URLs, and unsupported extraction can still fail; test with a supported public video and share the specific error if needed.

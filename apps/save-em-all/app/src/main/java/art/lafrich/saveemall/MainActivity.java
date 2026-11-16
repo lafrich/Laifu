@@ -95,7 +95,11 @@ public final class MainActivity extends Activity {
         }
         receiveLink(getIntent());
         ui.post(tick);
-        updateEngine(false);
+        // Defer automatic yt-dlp update until the app has been idle for a while.
+        // A lengthy update must never be the first thing blocking user downloads.
+        ui.postDelayed(() -> {
+            if (!destroyed && noActiveDownloads()) updateEngine(false);
+        }, 45000L);
     }
 
     private void buildUi() {
@@ -411,6 +415,16 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private boolean noActiveDownloads() {
+        JSONArray items = Store.list(this);
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject job = items.optJSONObject(i);
+            if (job != null && ("QUEUED".equals(job.optString("state"))
+                    || "DOWNLOADING".equals(job.optString("state")))) return false;
+        }
+        return !inspectRunning;
+    }
+
     private void updateEngine(boolean manual) {
         if (updateButton == null) return;
         updateButton.setEnabled(false);
@@ -431,18 +445,32 @@ public final class MainActivity extends Activity {
     private void queueDownload() {
         String url = normalize(address.getText().toString());
         if (!DownloadService.validUrl(url)) { toast("Enter a valid http(s) URL"); return; }
-        launchService(DownloadService.ADD, url, mode, null);
-        status.setText("ADDED TO DOWNLOAD QUEUE");
-        switchTab(2);
+        boolean queued = launchService(DownloadService.ADD, url, mode, null);
+        if (queued) {
+            status.setText("QUEUED • OPEN QUEUE FOR LIVE PROGRESS");
+            switchTab(2);
+        } else status.setText("COULD NOT START DOWNLOAD SERVICE");
     }
 
-    private void launchService(String action, String url, String format, String id) {
+    private boolean launchService(String action, String url, String format, String id) {
+        String queuedId = id;
+        if (DownloadService.ADD.equals(action) && url != null) {
+            queuedId = Store.add(this, url, format == null ? "BEST" : format);
+        }
         Intent intent = new Intent(this, DownloadService.class).setAction(action);
         if (url != null) intent.putExtra(DownloadService.EXTRA_URL, url);
         if (format != null) intent.putExtra(DownloadService.EXTRA_MODE, format);
-        if (id != null) intent.putExtra(DownloadService.EXTRA_ID, id);
-        try { startForegroundService(intent); }
-        catch (Exception e) { toast("Cannot start downloader: " + shortText(e.getMessage(), 80)); }
+        if (queuedId != null) intent.putExtra(DownloadService.EXTRA_ID, queuedId);
+        try {
+            startForegroundService(intent);
+            return true;
+        } catch (Exception e) {
+            if (DownloadService.ADD.equals(action) && queuedId != null)
+                Store.patch(this, queuedId, "FAILED", 0,
+                        "Gagal memulai service: " + shortText(e.getMessage(), 180), null, null);
+            toast("Cannot start downloader: " + shortText(e.getMessage(), 80));
+            return false;
+        }
     }
 
     private void renderList() {
@@ -492,6 +520,26 @@ public final class MainActivity extends Activity {
                 "FAILED".equals(state) ? 0xffffb0a1 : LCD, false);
         details.setPadding(0, dp(5), 0, dp(5));
         card.addView(details);
+
+        if ("FAILED".equals(state)) {
+            Button show = button("WHY FAILED? / COPY ERROR", 0xff70474b);
+            LinearLayout.LayoutParams showParams = new LinearLayout.LayoutParams(-1, dp(37));
+            showParams.bottomMargin = dp(9);
+            card.addView(show, showParams);
+            show.setOnClickListener(v -> {
+                String detail = job.optString("detail", "Unknown error");
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("Download failed")
+                        .setMessage(detail + "\n\nURL: " + url)
+                        .setPositiveButton("COPY ERROR", (dialog, which) -> {
+                            ((ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE))
+                                    .setPrimaryClip(ClipData.newPlainText("Save em all error", detail));
+                            toast("Error copied");
+                        })
+                        .setNegativeButton("CLOSE", null)
+                        .show();
+            });
+        }
 
         if (!"DONE".equals(state)) {
             ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
