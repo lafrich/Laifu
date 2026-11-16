@@ -1,4 +1,4 @@
-# Save em all — by Lafrich
+# Save em all — by Lafrich (v0.2.0)
 
 Android stream and media downloader. Independent application in the Laifu repository,
 using original retro Winamp-inspired dark-metal panels, green LCD, compact controls
@@ -31,3 +31,8 @@ No promises of universal site coverage. Download only content you own or may sav
 
 This application includes the GPL-3.0-licensed youtubedl-android / yt-dlp
 dependency. Distribution of compiled APKs must comply with applicable licenses.
+
+## v0.2.0: yt-dlp updates and proxies
+- Automatic nightly yt-dlp binary update on app start/when downloading, checked at most every 12 hours; stable fallback when nightly is unavailable. Manual UPDATE YT-DLP NOW button shows installed version and result. Requires internet and access to GitHub releases. If unavailable, bundled engine remains usable.
+- Optional HTTP(S), SOCKS4, SOCKS5 and SOCKS5h proxy for yt-dlp metadata extraction **and actual download**. Set via LINK > ENGINE / NETWORK SETTINGS > SAVE PROXY. Credentials in URL are stored locally in private app preferences and redacted from displayed yt-dlp errors. DIRECT / RESET clears the setting.
+- Proxy applies to yt-dlp requests only. The embedded WEB browser follows Android's own network settings. A proxy never circumvents DRM, login or permissions.

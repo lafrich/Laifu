@@ -57,6 +57,10 @@ public final class MainActivity extends Activity {
     private TextView preview;
     private TextView status;
     private TextView footer;
+    private TextView engineInfo;
+    private TextView proxyInfo;
+    private EditText proxyInput;
+    private Button updateButton;
     private FrameLayout host;
     private ScrollView linkPage;
     private WebView browser;
@@ -91,6 +95,7 @@ public final class MainActivity extends Activity {
         }
         receiveLink(getIntent());
         ui.post(tick);
+        updateEngine(false);
     }
 
     private void buildUi() {
@@ -231,6 +236,62 @@ public final class MainActivity extends Activity {
         hint.setPadding(dp(2), dp(18), dp(2), 0);
         body.addView(hint);
 
+        TextView settingsTitle = text("ENGINE / NETWORK SETTINGS", 12, LCD, true);
+        settingsTitle.setPadding(0, dp(19), 0, dp(10));
+        body.addView(settingsTitle);
+
+        engineInfo = text("YT-DLP • Checking engine...", 11, SUBTLE, false);
+        engineInfo.setPadding(dp(9), dp(7), dp(9), dp(8));
+        engineInfo.setBackground(panelBackground());
+        body.addView(engineInfo);
+
+        updateButton = button("↻ UPDATE YT-DLP NOW", STEEL);
+        LinearLayout.LayoutParams engineButtonParams = new LinearLayout.LayoutParams(-1, dp(44));
+        engineButtonParams.topMargin = dp(7);
+        body.addView(updateButton, engineButtonParams);
+        updateButton.setOnClickListener(v -> updateEngine(true));
+
+        TextView proxyHeader = text("PROXY FOR ANALYZE & DOWNLOAD", 11, LCD, true);
+        proxyHeader.setPadding(0, dp(18), 0, dp(8));
+        body.addView(proxyHeader);
+
+        proxyInput = new EditText(this);
+        proxyInput.setSingleLine(true);
+        proxyInput.setTextSize(12);
+        proxyInput.setTypeface(Typeface.MONOSPACE);
+        proxyInput.setTextColor(LCD);
+        proxyInput.setHintTextColor(0xff849779);
+        proxyInput.setHint("socks5://host:1080 or http://host:8080");
+        proxyInput.setText(ProxySettings.get(this));
+        proxyInput.setPadding(dp(9), 0, dp(9), 0);
+        proxyInput.setBackground(lcdBackground());
+        body.addView(proxyInput, new LinearLayout.LayoutParams(-1, dp(47)));
+
+        LinearLayout proxyActions = new LinearLayout(this);
+        Button saveProxy = button("SAVE PROXY", 0xff416748);
+        proxyActions.addView(saveProxy, new LinearLayout.LayoutParams(0, dp(42), 1));
+        saveProxy.setOnClickListener(v -> saveProxy());
+        Button clearProxy = button("DIRECT / RESET", STEEL);
+        LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(0, dp(42), 1);
+        clearParams.leftMargin = dp(8);
+        proxyActions.addView(clearProxy, clearParams);
+        clearProxy.setOnClickListener(v -> {
+            proxyInput.setText("");
+            ProxySettings.save(this, "");
+            proxyInfo.setText(ProxySettings.status(this));
+            status.setText("PROXY DISABLED • DIRECT CONNECTION");
+        });
+        LinearLayout.LayoutParams proxyButtonsParams = new LinearLayout.LayoutParams(-1, dp(42));
+        proxyButtonsParams.topMargin = dp(8);
+        body.addView(proxyActions, proxyButtonsParams);
+
+        proxyInfo = text(ProxySettings.status(this), 10, SUBTLE, false);
+        proxyInfo.setPadding(dp(3), dp(8), dp(3), dp(4));
+        body.addView(proxyInfo);
+        TextView proxyHint = text("HTTP(S), SOCKS4/5/5h. Use a proxy you control/trust. Credentials stay on this device. "
+                + "Proxy applies to downloader only; WEB tab uses your phone network.", 10, SUBTLE, false);
+        body.addView(proxyHint);
+
         scroll.addView(body);
         return scroll;
     }
@@ -313,13 +374,19 @@ public final class MainActivity extends Activity {
             String result;
             boolean found = false;
             try {
-                YoutubeDL.getInstance().init(getApplicationContext());
-                VideoInfo info = YoutubeDL.getInstance().getInfo(url);
+                VideoInfo info;
+                synchronized (EngineManager.LOCK) {
+                    EngineManager.initialize(getApplicationContext());
+                    com.yausername.youtubedl_android.YoutubeDLRequest request =
+                            new com.yausername.youtubedl_android.YoutubeDLRequest(url);
+                    ProxySettings.apply(this, request);
+                    info = YoutubeDL.getInstance().getInfo(request);
+                }
                 String title = info == null ? null : info.getTitle();
                 result = "MEDIA DETECTED\n\n" + (title == null ? Uri.parse(url).getHost() : title);
                 found = true;
             } catch (Exception e) {
-                result = "PREVIEW UNAVAILABLE\n\nTry DOWNLOAD directly. " + shortText(e.getMessage(), 115);
+                result = "PREVIEW UNAVAILABLE\n\nTry DOWNLOAD directly. " + shortText(ProxySettings.redact(this, e.getMessage()), 115);
             }
             final String message = result;
             final boolean success = found;
@@ -330,6 +397,35 @@ public final class MainActivity extends Activity {
                 status.setText(success ? "READY TO DOWNLOAD" : "LINK MAY STILL DOWNLOAD");
             });
         }, "source-inspector").start();
+    }
+
+    private void saveProxy() {
+        try {
+            ProxySettings.save(this, proxyInput.getText().toString());
+            proxyInfo.setText(ProxySettings.status(this));
+            status.setText("NETWORK SETTINGS SAVED");
+            hideKeyboard();
+            toast("Proxy configuration saved");
+        } catch (IllegalArgumentException e) {
+            toast(e.getMessage());
+        }
+    }
+
+    private void updateEngine(boolean manual) {
+        if (updateButton == null) return;
+        updateButton.setEnabled(false);
+        engineInfo.setText("YT-DLP • Updating/checking (internet required)...");
+        status.setText("CHECKING DOWNLOADER ENGINE...");
+        new Thread(() -> {
+            EngineManager.Result result = EngineManager.update(getApplicationContext(), manual);
+            runOnUiThread(() -> {
+                if (destroyed) return;
+                updateButton.setEnabled(true);
+                engineInfo.setText("YT-DLP • " + result.version + "\n" + result.message);
+                status.setText(result.success ? "ENGINE READY" : "ENGINE UPDATE UNAVAILABLE");
+                if (manual) toast(result.message);
+            });
+        }, "yt-dlp-update").start();
     }
 
     private void queueDownload() {

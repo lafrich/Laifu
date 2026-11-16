@@ -114,8 +114,7 @@ public final class DownloadService extends Service {
 
     private void initEngine() throws Exception {
         if (initialized) return;
-        YoutubeDL.getInstance().init(this);
-        FFmpeg.getInstance().init(this);
+        EngineManager.initialize(this);
         initialized = true;
     }
 
@@ -127,13 +126,20 @@ public final class DownloadService extends Service {
         File stage = null;
         runningId = id;
         try {
-            Store.patch(this, id, "DOWNLOADING", 0, "Menyiapkan engine", null, null);
-            postNotification("Preparing stream", 0);
+            synchronized (EngineManager.LOCK) {
+            Store.patch(this, id, "DOWNLOADING", 0, "Memeriksa versi yt-dlp", null, null);
+            postNotification("Checking yt-dlp", 0);
             initEngine();
+            EngineManager.Result update = EngineManager.update(this, false);
+            if (!update.success) {
+                Store.patch(this, id, null, 0, "Auto-update gagal, engine yang tersedia akan dicoba", null, null);
+            }
 
             // Metadata failures should not prevent direct media URLs from downloading.
             try {
-                VideoInfo info = YoutubeDL.getInstance().getInfo(url);
+                YoutubeDLRequest inspect = new YoutubeDLRequest(url);
+                ProxySettings.apply(this, inspect);
+                VideoInfo info = YoutubeDL.getInstance().getInfo(inspect);
                 if (info != null && info.getTitle() != null && !info.getTitle().isEmpty()) {
                     title = info.getTitle();
                     Store.patch(this, id, null, -1, null, title, null);
@@ -146,6 +152,7 @@ public final class DownloadService extends Service {
             if (!stage.isDirectory() && !stage.mkdirs()) throw new IllegalStateException("Tidak bisa membuat folder sementara");
 
             YoutubeDLRequest request = new YoutubeDLRequest(url);
+            ProxySettings.apply(this, request);
             request.addOption("--no-playlist");
             request.addOption("--no-mtime");
             request.addOption("--socket-timeout", "20");
@@ -182,6 +189,7 @@ public final class DownloadService extends Service {
                 return Unit.INSTANCE;
             };
             YoutubeDL.getInstance().execute(request, id, callback);
+            } // engine lock: updater must not replace yt-dlp during a download.
             if ("CANCELLED".equals(state(id))) return;
 
             File result = findResult(stage);
@@ -191,10 +199,10 @@ public final class DownloadService extends Service {
             postNotification("Saved: " + trim(title, 32), 100);
         } catch (Exception e) {
             if (!"CANCELLED".equals(state(id))) {
-                Store.patch(this, id, "FAILED", -1, trim(e.getMessage() == null ? e.toString() : e.getMessage(), 240), null, null);
+                Store.patch(this, id, "FAILED", -1, ProxySettings.redact(this, e.getMessage() == null ? e.toString() : e.getMessage()), null, null);
                 postNotification("Download failed", 0);
             }
-            Log.e("SaveEmAll", "Download error", e);
+            Log.e("SaveEmAll", "Download failed: " + e.getClass().getSimpleName());
         } finally {
             if (stage != null) clean(stage);
             runningId = null;
