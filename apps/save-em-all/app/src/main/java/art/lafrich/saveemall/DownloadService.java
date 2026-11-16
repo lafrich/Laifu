@@ -127,6 +127,8 @@ public final class DownloadService extends Service {
         String mode = job.optString("mode", "BEST");
         String title = job.optString("title", "Media");
         String effectiveUrl = url;
+        String browserReferer = job.optString("referer", "");
+        String browserAgent = job.optString("userAgent", "");
         VidaraResolver.Result vidara = null;
         boolean pornhub = PornhubSupport.isSupportedHost(url);
         File stage = null;
@@ -137,7 +139,8 @@ public final class DownloadService extends Service {
 
             // Direct MP4/MP3/etc URLs are ordinary HTTP resources, not website pages.
             // Prefer simple HTTP streaming so these work even if yt-dlp's extractor is outdated.
-            if (ProxySettings.get(this).isEmpty() && DirectTransfer.supports(url) && !"AUDIO".equals(mode)) {
+            if (browserReferer.isEmpty() && ProxySettings.get(this).isEmpty()
+                    && DirectTransfer.supports(url) && !"AUDIO".equals(mode)) {
                 File base = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
                 if (base == null) base = getCacheDir();
                 stage = new File(base, "staging/" + id);
@@ -176,6 +179,7 @@ public final class DownloadService extends Service {
                 YoutubeDLRequest inspect = new YoutubeDLRequest(url);
                 ProxySettings.apply(this, inspect);
                 PornhubSupport.apply(inspect, url);
+                applyCapturedHeaders(inspect, browserReferer, browserAgent);
                 VideoInfo info = YoutubeDL.getInstance().getInfo(inspect);
                 if (info != null && info.getTitle() != null && !info.getTitle().isEmpty()) {
                     title = info.getTitle();
@@ -191,6 +195,7 @@ public final class DownloadService extends Service {
             YoutubeDLRequest request = new YoutubeDLRequest(effectiveUrl);
             ProxySettings.apply(this, request);
             PornhubSupport.apply(request, url);
+            applyCapturedHeaders(request, browserReferer, browserAgent);
             if (vidara != null) {
                 request.addOption("--referer", vidara.referer);
                 request.addOption("--add-header", "Origin:https://vidara.so");
@@ -255,6 +260,7 @@ public final class DownloadService extends Service {
                     YoutubeDLRequest retry = new YoutubeDLRequest(url);
                     ProxySettings.apply(this, retry);
                     PornhubSupport.apply(retry, url);
+                    applyCapturedHeaders(retry, browserReferer, browserAgent);
                     retry.addOption("--no-playlist");
                     retry.addOption("--no-mtime");
                     retry.addOption("--socket-timeout", "20");
@@ -274,7 +280,7 @@ public final class DownloadService extends Service {
         } catch (Exception e) {
             if (!"CANCELLED".equals(state(id))) {
                 Store.patch(this, id, "FAILED", -1,
-                        readableError(e, url), null, null);
+                        readableError(e, url, browserReferer), null, null);
                 postNotification("Download failed", 0);
             }
             Log.e("SaveEmAll", "Download failed: " + e.getClass().getSimpleName());
@@ -284,11 +290,20 @@ public final class DownloadService extends Service {
         }
     }
 
-    private String readableError(Exception e, String url) {
+    private static void applyCapturedHeaders(YoutubeDLRequest request,
+            String referer, String agent) {
+        if (validUrl(referer)) request.addOption("--referer", referer);
+        if (agent != null && !agent.isEmpty() && agent.length() < 1024
+                && !agent.contains("\r") && !agent.contains("\n"))
+            request.addOption("--user-agent", agent);
+    }
+
+    private String readableError(Exception e, String url, String browserReferer) {
         String raw = ProxySettings.redact(this, e.getMessage() == null ? e.toString() : e.getMessage());
         String m = raw.toLowerCase(Locale.ROOT);
         String advice;
-        if (PornhubSupport.isSupportedHost(url) && (m.contains("403") || m.contains("unavailable")
+        if ((PornhubSupport.isSupportedHost(url) || PornhubSupport.isSupportedHost(browserReferer))
+                && (m.contains("403") || m.contains("unavailable")
                 || m.contains("country") || m.contains("sign in") || m.contains("login")
                 || m.contains("cookies"))) advice = "Pornhub • Video mungkin tidak publik, membutuhkan akses resmi, atau dibatasi wilayah. Tidak bisa melewati proteksi situs. ";
         else if (m.contains("403") || m.contains("forbidden")) advice = "HTTP 403 • Link kedaluwarsa, cookies, atau akses ditolak. ";
@@ -299,6 +314,8 @@ public final class DownloadService extends Service {
         else if (m.contains("unsupported url") || m.contains("no video formats")) advice = "Situs belum didukung atau bukan link video. ";
         else if (m.contains("proxy")) advice = "Masalah proxy • Coba DIRECT / RESET. ";
         else advice = "Download gagal • Periksa link dan jaringan. ";
+        if (PornhubSupport.isSupportedHost(url) && m.contains("403"))
+            advice += "Jika video dapat diputar di WEB, coba PLAY lalu USE DETECTED MEDIA STREAM. ";
         return trim(advice + raw, 500);
     }
 

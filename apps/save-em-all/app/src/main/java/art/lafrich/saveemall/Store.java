@@ -23,12 +23,21 @@ public final class Store {
     }
 
     public static synchronized String add(Context context, String url, String mode) {
+        return add(context, url, mode, null, null);
+    }
+
+    public static synchronized String add(Context context, String url, String mode,
+            String referer, String userAgent) {
         String id = String.valueOf(System.currentTimeMillis()) + "-" + String.valueOf((int)(Math.random()*10000));
         try {
             JSONObject item = new JSONObject();
             item.put("id", id);
             item.put("url", url);
             item.put("mode", mode);
+            if (DownloadService.validUrl(referer)) item.put("referer", referer);
+            if (userAgent != null && !userAgent.isEmpty() && userAgent.length() < 1024
+                    && !userAgent.contains("\r") && !userAgent.contains("\n"))
+                item.put("userAgent", userAgent);
             item.put("state", "QUEUED");
             item.put("title", android.net.Uri.parse(url).getHost());
             item.put("detail", "Menunggu giliran");

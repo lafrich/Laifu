@@ -1,4 +1,4 @@
-# Save em all — by Lafrich (v0.5.0)
+# Save em all — by Lafrich (v0.6.0)
 
 Android stream and media downloader. Independent application in the Laifu repository,
 using original retro Winamp-inspired dark-metal panels, green LCD, compact controls
@@ -57,3 +57,9 @@ dependency. Distribution of compiled APKs must comply with applicable licenses.
 - For BEST mode, prefers a complete MP4/HLS rendition before separate A/V tracks. Existing 720p, MP3, original, queued downloads, and proxy settings remain available.
 - Clearer failures when content is unavailable, restricted, or login-gated. No private API scraping, cookie stealing, account impersonation, age/region bypass or DRM circumvention.
 - Real playback/download success depends on the specific public video, current extractor, and network; an APK build does not confirm live site access.
+
+## v0.6.0: WEB capture fallback
+- If a video page rejects yt-dlp metadata extraction (e.g. HTTP 403), open WEB, play the permitted public video, and choose USE DETECTED MEDIA STREAM after it appears.
+- The embedded browser observes its own requested .m3u8, .mpd, .mp4, .m4v, and .webm resources. It never intercepts responses or captures browser cookies. The observed media link is passed to yt-dlp only after explicit user action.
+- Saves the original page URL as referer and the browser's user agent alongside the queued media link. Existing Vidara resolver and four output modes remain intact.
+- No guarantee for opaque player protocols, expired media links, anti-bot restrictions, authentication, age verification, region blocks, paid/encrypted content, or DRM. Download content only with authorization.

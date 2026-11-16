@@ -7,6 +7,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -20,6 +21,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
@@ -61,6 +64,7 @@ public final class MainActivity extends Activity {
     private TextView proxyInfo;
     private EditText proxyInput;
     private Button updateButton;
+    private Button captureButton;
     private FrameLayout host;
     private ScrollView linkPage;
     private WebView browser;
@@ -71,6 +75,12 @@ public final class MainActivity extends Activity {
     private String lastRendered = "";
     private volatile boolean inspectRunning;
     private boolean destroyed;
+    private String discoveredUrl;
+    private String discoveredReferer;
+    private String discoveredAgent;
+    private String selectedMediaUrl;
+    private String selectedReferer;
+    private String selectedAgent;
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -168,6 +178,12 @@ public final class MainActivity extends Activity {
         listBody.setPadding(dp(5), dp(9), dp(5), dp(24));
         listPage.addView(listBody);
         host.addView(listPage, new FrameLayout.LayoutParams(-1, -1));
+        captureButton = button("PLAY VIDEO IN WEB TO DETECT STREAM", STEEL);
+        captureButton.setEnabled(false);
+        captureButton.setOnClickListener(v -> useCapturedStream());
+        LinearLayout.LayoutParams captureParams = new LinearLayout.LayoutParams(-1, dp(43));
+        captureParams.topMargin = dp(8);
+        root.addView(captureButton, captureParams);
 
         status = text("SYSTEM READY  •  PASTE A LINK TO BEGIN", 11, LCD, false);
         status.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -308,18 +324,77 @@ public final class MainActivity extends Activity {
         page.getSettings().setMediaPlaybackRequiresUserGesture(true);
         page.setWebChromeClient(new WebChromeClient());
         page.setWebViewClient(new WebViewClient() {
+            @Override public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                discoveredUrl = null;
+                discoveredReferer = null;
+                discoveredAgent = null;
+                refreshCaptureButton();
+            }
             @Override public void onPageFinished(WebView view, String url) {
-                if (tab == 1 && DownloadService.validUrl(url)) address.setText(url);
+                if (tab == 1 && DownloadService.validUrl(url)) {
+                    address.setText(url);
+                    if (PornhubSupport.isSupportedHost(url) && discoveredUrl == null)
+                        status.setText("WEB: PLAY VIDEO, THEN USE DETECTED MEDIA STREAM");
+                }
+            }
+            @Override public WebResourceResponse shouldInterceptRequest(
+                    WebView view, WebResourceRequest request) {
+                // Observe media that the browser requests on its own.
+                // Do not intercept responses, extract cookies, or bypass DRM.
+                if (!request.isForMainFrame()) {
+                    String candidate = request.getUrl().toString();
+                    if (isMediaResource(candidate)) ui.post(() -> {
+                        if (destroyed || !PornhubSupport.isSupportedHost(view.getUrl())) return;
+                        discoveredUrl = candidate;
+                        discoveredReferer = view.getUrl();
+                        discoveredAgent = view.getSettings().getUserAgentString();
+                        refreshCaptureButton();
+                        if (tab == 1) status.setText("WEB: MEDIA LINK DETECTED");
+                    });
+                }
+                return super.shouldInterceptRequest(view, request);
             }
         });
-        page.setDownloadListener((url, userAgent, contentDisposition, mimetype, length) -> {
+        page.setDownloadListener((url, agent, disposition, mime, size) -> {
             if (!DownloadService.validUrl(url)) return;
-            address.setText(url);
-            switchTab(0);
-            status.setText("DOWNLOAD URL CAPTURED FROM WEB");
-            preview.setText("DIRECT MEDIA LINK DETECTED\n\nChoose output mode and download.");
+            discoveredUrl = url;
+            discoveredReferer = page.getUrl();
+            discoveredAgent = agent;
+            refreshCaptureButton();
+            status.setText("WEB: DOWNLOAD LINK DETECTED");
         });
         return page;
+    }
+
+    private static boolean isMediaResource(String input) {
+        if (!DownloadService.validUrl(input)) return false;
+        String path = Uri.parse(input).getPath();
+        return path != null && path.toLowerCase(Locale.ROOT)
+                .matches(".*\\.(m3u8|mpd|mp4|m4v|webm)$");
+    }
+
+    private void refreshCaptureButton() {
+        if (captureButton == null) return;
+        boolean ready = DownloadService.validUrl(discoveredUrl);
+        captureButton.setVisibility(tab == 1 ? View.VISIBLE : View.GONE);
+        captureButton.setEnabled(ready);
+        captureButton.setText(ready ? "USE DETECTED MEDIA STREAM"
+                : "PLAY VIDEO IN WEB TO DETECT STREAM");
+    }
+
+    private void useCapturedStream() {
+        if (!DownloadService.validUrl(discoveredUrl)) {
+            toast("Play the video first");
+            return;
+        }
+        selectedMediaUrl = discoveredUrl;
+        selectedReferer = discoveredReferer;
+        selectedAgent = discoveredAgent;
+        address.setText(selectedMediaUrl);
+        switchTab(0);
+        preview.setText("WEB MEDIA DETECTED\n\n" + Uri.parse(selectedMediaUrl).getHost()
+                + "\nChoose BEST / SOURCE, then DOWNLOAD.");
+        status.setText("MEDIA CAPTURED • READY TO DOWNLOAD");
     }
 
     private void switchTab(int index) {
@@ -331,6 +406,7 @@ public final class MainActivity extends Activity {
             tabButtons[i].setBackground(buttonBackground(i == index ? 0xff49614b : STEEL));
             tabButtons[i].setTextColor(i == index ? LCD : 0xfff0f2f6);
         }
+        refreshCaptureButton();
         if (index == 2 || index == 3) renderList();
         if (index == 1 && "about:blank".equals(browser.getUrl())) status.setText("WEB BROWSER  •  ENTER URL AND PRESS GO");
     }
@@ -392,6 +468,7 @@ public final class MainActivity extends Activity {
                                 new com.yausername.youtubedl_android.YoutubeDLRequest(url);
                         ProxySettings.apply(this, request);
                         PornhubSupport.apply(request, url);
+                        applyCapturedHeaders(request, url);
                         info = YoutubeDL.getInstance().getInfo(request);
                     }
                     String title = info == null ? null : info.getTitle();
@@ -411,6 +488,15 @@ public final class MainActivity extends Activity {
                 status.setText(success ? "READY TO DOWNLOAD" : "LINK MAY STILL DOWNLOAD");
             });
         }, "source-inspector").start();
+    }
+
+    private void applyCapturedHeaders(
+            com.yausername.youtubedl_android.YoutubeDLRequest request, String url) {
+        if (url.equals(selectedMediaUrl) && DownloadService.validUrl(selectedReferer)) {
+            request.addOption("--referer", selectedReferer);
+            if (selectedAgent != null && !selectedAgent.isEmpty())
+                request.addOption("--user-agent", selectedAgent);
+        }
     }
 
     private void saveProxy() {
@@ -465,7 +551,9 @@ public final class MainActivity extends Activity {
     private boolean launchService(String action, String url, String format, String id) {
         String queuedId = id;
         if (DownloadService.ADD.equals(action) && url != null) {
-            queuedId = Store.add(this, url, format == null ? "BEST" : format);
+            String referer = url.equals(selectedMediaUrl) ? selectedReferer : null;
+            String agent = url.equals(selectedMediaUrl) ? selectedAgent : null;
+            queuedId = Store.add(this, url, format == null ? "BEST" : format, referer, agent);
         }
         Intent intent = new Intent(this, DownloadService.class).setAction(action);
         if (url != null) intent.putExtra(DownloadService.EXTRA_URL, url);
