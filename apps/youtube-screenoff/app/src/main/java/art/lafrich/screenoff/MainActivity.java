@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.content.res.ColorStateList;
+import android.widget.ImageView;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -52,8 +54,14 @@ public final class MainActivity extends Activity {
     private static final int MUSIC = 1;
     private static final int PLAYER_TAB = 2;
     private static final int HISTORY_TAB = 3;
-    private static final int LCD = 0xffc5ff79;
-    private static final int PANEL = 0xff1d2430;
+    // Warm sketchbook palette, inspired by the user's hand-drawn red play logo.
+    private static final int INK = 0xff24201e;
+    private static final int PAPER = 0xfffffaf1;
+    private static final int BG = 0xfffaf0e3;
+    private static final int RED = 0xffe33432;
+    private static final int MUTED = 0xff85766d;
+    private static final int LCD = INK;
+    private static final int PANEL = PAPER;
 
     private final WebView[] pages = new WebView[2];
     private final String[] addressDrafts = {"", ""};
@@ -107,30 +115,53 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(0xff10151b);
-        getWindow().setNavigationBarColor(0xff10151b);
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xff161c25);
-        root.setPadding(dp(12), dp(8), dp(12), dp(8));
+        root.setBackgroundColor(BG);
+        root.setPadding(dp(12), dp(7), dp(12), dp(7));
 
+        // Hand-drawn brand. Only the play-logo illustration is the app icon.
+        // The "by Lafrich" credit is shown here but not in Android's app label.
         LinearLayout brandRow = new LinearLayout(this);
         brandRow.setGravity(Gravity.CENTER_VERTICAL);
-        brandRow.setPadding(dp(4), dp(3), dp(4), dp(11));
-        TextView heading = label("FREE YOUTUBE", 19, 0xfff0f2f6, true);
-        heading.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        brandRow.addView(heading, new LinearLayout.LayoutParams(0, -2, 1));
-        TextView credit = label("by Lafrich", 11, 0xffb5c8e4, false);
-        credit.setTypeface(Typeface.MONOSPACE);
-        brandRow.addView(credit);
+        brandRow.setPadding(dp(2), dp(1), dp(2), dp(7));
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.doodle_logo);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setContentDescription("Logo Free Youtube bergaya doodle");
+        brandRow.addView(logo, new LinearLayout.LayoutParams(dp(66), dp(65)));
+
+        LinearLayout brandText = new LinearLayout(this);
+        brandText.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(0, -2, 1);
+        textParams.leftMargin = dp(8);
+
+        TextView heading = label("Free Youtube", 25, INK, true);
+        heading.setTypeface(Typeface.create("casual", Typeface.BOLD));
+        heading.setSingleLine(true);
+        heading.setTextScaleX(.96f);
+        brandText.addView(heading);
+
+        TextView credit = label("by Lafrich  ✎", 12, RED, false);
+        credit.setTypeface(Typeface.create("casual", Typeface.NORMAL));
+        brandText.addView(credit);
+        brandRow.addView(brandText, textParams);
+
+        TextView sketch = label("✧", 23, RED, true);
+        brandRow.addView(sketch);
         root.addView(brandRow);
 
         LinearLayout tabRow = new LinearLayout(this);
-        youtubeTab = button("VIDEO", 0xff303b50);
-        musicTab = button("MUSIC", 0xff303b50);
-        playerTab = button("PLAYER", 0xff303b50);
-        historyTab = button("HISTORY", 0xff303b50);
+        youtubeTab = button("▶ VIDEO", PAPER);
+        musicTab = button("♫ MUSIC", PAPER);
+        playerTab = button("PLAYER", PAPER);
+        historyTab = button("HISTORY", PAPER);
         tabRow.addView(youtubeTab, tabParams(0));
         tabRow.addView(musicTab, tabParams(5));
         tabRow.addView(playerTab, tabParams(5));
@@ -145,16 +176,16 @@ public final class MainActivity extends Activity {
         linkRow.setOrientation(LinearLayout.HORIZONTAL);
         address = new EditText(this);
         address.setSingleLine(true);
-        address.setTextColor(LCD);
-        address.setHintTextColor(0xff82977a);
-        address.setTextSize(12);
-        address.setTypeface(Typeface.MONOSPACE);
-        address.setHint("Link YouTube atau cari video");
+        address.setTextColor(INK);
+        address.setHintTextColor(MUTED);
+        address.setTextSize(13);
+        address.setTypeface(Typeface.create("casual", Typeface.NORMAL));
+        address.setHint("Search video, music, or paste link");
         address.setPadding(dp(12), 0, dp(8), 0);
         address.setBackground(lcd());
         linkRow.addView(address, new LinearLayout.LayoutParams(0, dp(48), 1));
 
-        Button go = button("GO", 0xff39435a);
+        Button go = button("⌕ GO", RED);
         LinearLayout.LayoutParams goParams = new LinearLayout.LayoutParams(dp(72), dp(48));
         goParams.leftMargin = dp(8);
         linkRow.addView(go, goParams);
@@ -188,7 +219,7 @@ public final class MainActivity extends Activity {
 
         playRow = new LinearLayout(this);
         playRow.setOrientation(LinearLayout.HORIZONTAL);
-        playButton = button("▶ PLAY NOW", 0xff416047);
+        playButton = button("▶ PLAY NOW", RED);
         playRow.addView(playButton, new LinearLayout.LayoutParams(0, dp(50), 1));
         playButton.setOnClickListener(v -> playSelected(false));
 
@@ -204,9 +235,9 @@ public final class MainActivity extends Activity {
         root.addView(makeMiniPlayer());
 
         hint = new TextView(this);
-        hint.setTextColor(0xff99a8bd);
-        hint.setTypeface(Typeface.MONOSPACE);
-        hint.setTextSize(10);
+        hint.setTextColor(MUTED);
+        hint.setTypeface(Typeface.create("casual", Typeface.NORMAL));
+        hint.setTextSize(11);
         hint.setPadding(dp(3), dp(7), dp(3), dp(2));
         root.addView(hint);
 
@@ -231,11 +262,12 @@ public final class MainActivity extends Activity {
         detail.setOrientation(LinearLayout.VERTICAL);
         detail.setPadding(dp(16), dp(18), dp(16), dp(18));
 
-        TextView eyebrow = label("PLAYLIST EDITOR / NOW PLAYING", 12, LCD, true);
+        TextView eyebrow = label("♪  NOW PLAYING", 17, RED, true);
+        eyebrow.setTypeface(Typeface.create("casual", Typeface.BOLD));
         detail.addView(eyebrow);
 
-        detailTitle = label("NO TRACK LOADED", 23, LCD, true);
-        detailTitle.setTypeface(Typeface.MONOSPACE);
+        detailTitle = label("Nothing playing yet", 23, INK, true);
+        detailTitle.setTypeface(Typeface.create("casual", Typeface.BOLD));
         detailTitle.setBackground(lcd());
         detailTitle.setPadding(dp(12), dp(12), dp(12), dp(12));
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(-1, -2);
@@ -244,18 +276,19 @@ public final class MainActivity extends Activity {
 
         TextView desc = label(
                 "Kontrol player selalu tersedia di bagian bawah, termasuk saat kamu berpindah tab.",
-                13, 0xffb8bbca, false);
+                13, MUTED, false);
         LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(-1, -2);
         descParams.topMargin = dp(18);
         detail.addView(desc, descParams);
 
-        TextView upnext = label("QUEUE / PLAYLIST", 13, LCD, true);
+        TextView upnext = label("✎  Up next / Queue", 18, RED, true);
+        upnext.setTypeface(Typeface.create("casual", Typeface.BOLD));
         LinearLayout.LayoutParams queueHeadingParams = new LinearLayout.LayoutParams(-1, -2);
         queueHeadingParams.topMargin = dp(34);
         detail.addView(upnext, queueHeadingParams);
 
-        queueDetails = label("NO TRACKS", 13, LCD, false);
-        queueDetails.setTypeface(Typeface.MONOSPACE);
+        queueDetails = label("No tracks in queue", 14, INK, false);
+        queueDetails.setTypeface(Typeface.create("casual", Typeface.NORMAL));
         queueDetails.setBackground(lcd());
         queueDetails.setPadding(dp(12), dp(12), dp(12), dp(12));
         queueDetails.setLineSpacing(dp(6), 1);
@@ -265,7 +298,7 @@ public final class MainActivity extends Activity {
 
         TextView note = label(
                 "ADD TO PLAYLIST: pilih lagu di VIDEO atau MUSIC lalu tekan + QUEUE. NEXT hanya tersedia jika ada lebih dari satu track.",
-                12, 0xff9b9fae, false);
+                12, MUTED, false);
         LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(-1, -2);
         noteParams.topMargin = dp(28);
         detail.addView(note, noteParams);
@@ -281,8 +314,8 @@ public final class MainActivity extends Activity {
 
         LinearLayout headingRow = new LinearLayout(this);
         headingRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = label("RECENTLY PLAYED", 17, LCD, true);
-        title.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        TextView title = label("▷  Recently Played", 20, INK, true);
+        title.setTypeface(Typeface.create("casual", Typeface.BOLD));
         headingRow.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
         Button erase = button("CLEAR", 0xff3c4457);
         headingRow.addView(erase, new LinearLayout.LayoutParams(dp(76), dp(38)));
@@ -298,8 +331,8 @@ public final class MainActivity extends Activity {
 
         TextView explanation = label(
                 "50 LAST TRACKS   /   SAVED ON THIS DEVICE\nRESUME: LANJUT  •  RESTART: AWAL",
-                11, 0xffa4bbd6, false);
-        explanation.setTypeface(Typeface.MONOSPACE);
+                11, MUTED, false);
+        explanation.setTypeface(Typeface.create("casual", Typeface.NORMAL));
         explanation.setPadding(dp(3), dp(7), dp(3), dp(12));
         outer.addView(explanation);
 
@@ -318,7 +351,7 @@ public final class MainActivity extends Activity {
             TextView empty = label(
                     "NO HISTORY\n\nPutar video atau musik. Riwayat akan tercatat saat audio mulai diputar.",
                     13, LCD, false);
-            empty.setTypeface(Typeface.MONOSPACE);
+            empty.setTypeface(Typeface.create("casual", Typeface.NORMAL));
             empty.setBackground(lcd());
             empty.setPadding(dp(16), dp(22), dp(16), dp(22));
             historyList.addView(empty);
@@ -336,15 +369,15 @@ public final class MainActivity extends Activity {
             TextView title = label(
                     String.format(Locale.US, "%02d  %s", number++, entry.title),
                     13, LCD, true);
-            title.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+            title.setTypeface(Typeface.create("casual", Typeface.BOLD));
             title.setMaxLines(2);
             title.setEllipsize(android.text.TextUtils.TruncateAt.END);
             card.addView(title);
 
             String details = date.format(new java.util.Date(entry.playedAt))
                     + "   /   LAST POS " + formatTime(entry.positionMs);
-            TextView info = label(details, 10, 0xff8fa979, false);
-            info.setTypeface(Typeface.MONOSPACE);
+            TextView info = label(details, 11, MUTED, false);
+            info.setTypeface(Typeface.create("casual", Typeface.NORMAL));
             LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(-1, -2);
             infoParams.topMargin = dp(5);
             card.addView(info, infoParams);
@@ -388,20 +421,20 @@ public final class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(10), dp(9), dp(10), dp(10));
-        card.setBackground(metal(0xff495568, 0xff212a37));
+        card.setBackground(new DoodleDrawable(PAPER, INK, true));
         LinearLayout.LayoutParams outerParams = new LinearLayout.LayoutParams(-1, -2);
         outerParams.topMargin = dp(8);
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
-        miniTitle = label("NO TRACK LOADED", 13, LCD, true);
-        miniTitle.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        miniTitle = label("Nothing playing ♪", 15, INK, true);
+        miniTitle.setTypeface(Typeface.create("casual", Typeface.BOLD));
         miniTitle.setPadding(dp(8), dp(6), dp(8), dp(6));
         miniTitle.setSingleLine(true);
         miniTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
         head.addView(miniTitle, new LinearLayout.LayoutParams(0, -2, 1));
-        miniQueue = label("00/00", 11, LCD, false);
-        miniQueue.setTypeface(Typeface.MONOSPACE);
+        miniQueue = label("0/0", 11, RED, false);
+        miniQueue.setTypeface(Typeface.create("casual", Typeface.NORMAL));
         miniQueue.setPadding(dp(4), dp(6), dp(8), dp(6));
         LinearLayout.LayoutParams queuePosition = new LinearLayout.LayoutParams(-2, -2);
         queuePosition.leftMargin = dp(8);
@@ -409,8 +442,8 @@ public final class MainActivity extends Activity {
         head.setBackground(lcd());
         card.addView(head);
 
-        TextView eq = label("▂ ▅ █ ▆ ▃  · · ·    44.1 kHz   /   STEREO   /   AUDIO", 10, LCD, false);
-        eq.setTypeface(Typeface.MONOSPACE);
+        TextView eq = label("♪   ~~~~   ♫     AUDIO PLAYER     ♫   ~~~~   ♪", 11, RED, false);
+        eq.setTypeface(Typeface.create("casual", Typeface.NORMAL));
         eq.setPadding(dp(8), dp(3), dp(8), 0);
         card.addView(eq);
 
@@ -418,9 +451,12 @@ public final class MainActivity extends Activity {
         timeline.setOrientation(LinearLayout.HORIZONTAL);
         progress = new SeekBar(this);
         progress.setMax(1000);
+        progress.setProgressTintList(ColorStateList.valueOf(RED));
+        progress.setThumbTintList(ColorStateList.valueOf(RED));
+        progress.setProgressBackgroundTintList(ColorStateList.valueOf(0xffcdbdb0));
         timeline.addView(progress, new LinearLayout.LayoutParams(0, dp(32), 1));
-        timeInfo = label("00:00 / --:--", 10, LCD, false);
-        timeInfo.setTypeface(Typeface.MONOSPACE);
+        timeInfo = label("00:00 / --:--", 11, INK, false);
+        timeInfo.setTypeface(Typeface.create("casual", Typeface.NORMAL));
         timeInfo.setGravity(Gravity.CENTER_VERTICAL);
         timeline.addView(timeInfo, new LinearLayout.LayoutParams(-2, dp(32)));
         card.addView(timeline);
@@ -441,12 +477,12 @@ public final class MainActivity extends Activity {
 
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
-        Button backward = button("−15", 0xff303b50);
-        prevBtn = button("⏮", 0xff303b50);
-        playPauseBtn = button("▶", 0xff416047);
-        nextBtn = button("⏭", 0xff303b50);
-        Button forward = button("+15", 0xff303b50);
-        speedBtn = button("1×", 0xff303b50);
+        Button backward = button("−15", PAPER);
+        prevBtn = button("⏮", PAPER);
+        playPauseBtn = button("▶", RED);
+        nextBtn = button("⏭", PAPER);
+        Button forward = button("+15", PAPER);
+        speedBtn = button("1×", PAPER);
         Button[] all = {backward, prevBtn, playPauseBtn, nextBtn, forward, speedBtn};
         for (int i = 0; i < all.length; i++) {
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(42), 1);
@@ -606,7 +642,7 @@ public final class MainActivity extends Activity {
 
     private WebView makeBrowser() {
         WebView w = new WebView(this);
-        w.setBackgroundColor(Color.BLACK);
+        w.setBackgroundColor(PAPER);
         w.getSettings().setJavaScriptEnabled(true);
         w.getSettings().setDomStorageEnabled(true);
         w.getSettings().setMediaPlaybackRequiresUserGesture(true);
@@ -652,14 +688,12 @@ public final class MainActivity extends Activity {
     }
 
     private void updateTabs() {
-        youtubeTab.setBackground(metal(currentTab == YOUTUBE ? 0xff526349 : 0xff495568,
-                currentTab == YOUTUBE ? 0xff223f2a : 0xff212a37));
-        musicTab.setBackground(metal(currentTab == MUSIC ? 0xff526349 : 0xff495568,
-                currentTab == MUSIC ? 0xff223f2a : 0xff212a37));
-        playerTab.setBackground(metal(currentTab == PLAYER_TAB ? 0xff526349 : 0xff495568,
-                currentTab == PLAYER_TAB ? 0xff223f2a : 0xff212a37));
-        historyTab.setBackground(metal(currentTab == HISTORY_TAB ? 0xff526349 : 0xff495568,
-                currentTab == HISTORY_TAB ? 0xff223f2a : 0xff212a37));
+        Button[] tabs = {youtubeTab, musicTab, playerTab, historyTab};
+        for (int i = 0; i < tabs.length; i++) {
+            boolean active = currentTab == i;
+            tabs[i].setTextColor(active ? Color.WHITE : INK);
+            tabs[i].setBackground(new DoodleDrawable(active ? RED : PAPER, INK, active));
+        }
 
         boolean browser = currentTab == YOUTUBE || currentTab == MUSIC;
         browserHolder.setVisibility(browser ? View.VISIBLE : View.GONE);
@@ -671,14 +705,14 @@ public final class MainActivity extends Activity {
         pages[MUSIC].setVisibility(currentTab == MUSIC ? View.VISIBLE : View.GONE);
         if (browser) {
             address.setHint(currentTab == MUSIC
-                    ? "Link YouTube Music atau cari lagu"
-                    : "Link YouTube atau cari video");
+                    ? "Search songs or paste a Music link"
+                    : "Search videos or paste a YouTube link");
         }
         hint.setText(currentTab == HISTORY_TAB
-                ? "RECENT / RESUME  •  50 LAST TRACKS  •  LOCAL"
+                ? "✎  Recent tracks saved on your phone • Resume anytime"
                 : currentTab == PLAYER_TAB
-                ? "PLAYLIST EDITOR  •  BACKGROUND AUDIO: ON"
-                : "PLAY NOW = mulai lagi  /  + QUEUE = tambah ke antrean");
+                ? "♪  Background audio stays playing when the screen is off"
+                : "▷ Play now  ·  + Queue to line up another song");
     }
 
     private WebView activeBrowser() {
@@ -857,38 +891,23 @@ public final class MainActivity extends Activity {
     private Button button(String label, int color) {
         Button b = new Button(this);
         b.setText(label);
-        b.setTextColor(0xffe9edf4);
-        b.setTextSize(10);
+        boolean accented = color == RED || color == 0xff416047;
+        b.setTextColor(accented ? Color.WHITE : INK);
+        b.setTextSize(11);
         b.setAllCaps(false);
-        b.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        b.setTypeface(Typeface.create("casual", Typeface.BOLD));
         b.setMinWidth(0);
         b.setMinimumWidth(0);
+        b.setStateListAnimator(null);
+        b.setElevation(0f);
         b.setPadding(dp(3), 0, dp(3), 0);
-        b.setBackground(metal(color, dim(color)));
+        b.setBackground(new DoodleDrawable(accented ? RED : PAPER, INK, accented));
         b.setGravity(Gravity.CENTER);
         return b;
     }
 
-    private int dim(int color) {
-        return Color.rgb((int)(Color.red(color) * .55),
-                (int)(Color.green(color) * .55),
-                (int)(Color.blue(color) * .55));
-    }
-
-    private GradientDrawable metal(int top, int bottom) {
-        GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{top, bottom});
-        d.setCornerRadius(dp(4));
-        d.setStroke(dp(1), 0xff667182);
-        return d;
-    }
-
-    private GradientDrawable lcd() {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(0xff101b12);
-        d.setStroke(dp(1), 0xff506a4b);
-        d.setCornerRadius(dp(3));
-        return d;
+    private android.graphics.drawable.Drawable lcd() {
+        return new DoodleDrawable(PAPER, INK, false);
     }
 
     private GradientDrawable round(int color, int r) {

@@ -1,13 +1,15 @@
-# Free Youtube — by Lafrich (v0.4.0)
+# Free Youtube — by Lafrich (v0.5.0)
 
 Android app inside `lafrich/Laifu/apps/youtube-screenoff`, without changes to the Laifu game.
 
 **Installed Android app name:** `Free Youtube` — “by Lafrich” appears only inside the app.
 
 ## Classic desktop-player style
-Retro Winamp-inspired design: dark metallic panels, luminous green LCD display,
-monospace track readout, compact playback controls and a playlist-editor view.
-Custom original styling; no official Winamp assets.
+**Doodle sketchbook UI:** warm cream paper background, rough black ink outlines,
+red pencil highlights, casual handwritten fonts, sketched media controls and
+history/playlist cards. The logo supplied by the user is adapted as a standalone
+red scribbled play-button app icon (no title or credit on the icon).
+The app label remains **Free Youtube**; **by Lafrich** appears only in the app header.
 
 **Tabs:** VIDEO / MUSIC / PLAYER / HISTORY.
 

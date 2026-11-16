@@ -8,7 +8,7 @@
 
     <application
         android:label="Free Youtube"
-        android:icon="@drawable/app_icon"
+        android:icon="@drawable/doodle_logo"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="false">
         <activity
