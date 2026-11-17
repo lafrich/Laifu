@@ -1,4 +1,4 @@
-# Save em all — by Lafrich (v0.6.0)
+# Save em all — by Lafrich (v0.6.1)
 
 Android stream and media downloader. Independent application in the Laifu repository,
 using original retro Winamp-inspired dark-metal panels, green LCD, compact controls
@@ -63,3 +63,9 @@ dependency. Distribution of compiled APKs must comply with applicable licenses.
 - The embedded browser observes its own requested .m3u8, .mpd, .mp4, .m4v, and .webm resources. It never intercepts responses or captures browser cookies. The observed media link is passed to yt-dlp only after explicit user action.
 - Saves the original page URL as referer and the browser's user agent alongside the queued media link. Existing Vidara resolver and four output modes remain intact.
 - No guarantee for opaque player protocols, expired media links, anti-bot restrictions, authentication, age verification, region blocks, paid/encrypted content, or DRM. Download content only with authorization.
+
+## v0.6.1: Unresponsive buttons on small phone screens
+- PASTE, ANALYZE, and DOWNLOAD are now fixed immediately below the URL input and outside the weighted content area; the Android keyboard can no longer make these primary buttons disappear by collapsing the scrolling panel.
+- Keyboard DONE hides the keyboard; initial focus stays off the edit field; PASTE is immediate and no longer launches automatic metadata extraction.
+- Browser WebView is lazy-loaded only when WEB is opened, reducing startup memory/process overhead for LINK.
+- Queue submit shows immediate feedback and switches to the live queue. Existing Vidara, Pornhub, four modes, download history and WEB capture logic are preserved.

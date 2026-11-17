@@ -20,6 +20,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
+import android.view.inputmethod.EditorInfo;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -117,6 +118,9 @@ public final class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12), dp(8), dp(12), dp(8));
         root.setBackgroundColor(BG);
+        // Avoid auto-focusing URL field and opening the keyboard on launch.
+        root.setFocusableInTouchMode(true);
+        root.requestFocus();
 
         LinearLayout head = new LinearLayout(this);
         head.setPadding(dp(4), dp(3), dp(4), dp(9));
@@ -143,6 +147,16 @@ public final class MainActivity extends Activity {
         addressRow.setGravity(Gravity.CENTER_VERTICAL);
         address = new EditText(this);
         address.setSingleLine(true);
+        address.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        address.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        address.setOnEditorActionListener((view, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                hideKeyboard();
+                return true;
+            }
+            return false;
+        });
         address.setTextSize(12);
         address.setTextColor(LCD);
         address.setHintTextColor(0xff849779);
@@ -163,6 +177,27 @@ public final class MainActivity extends Activity {
         ap.topMargin = dp(9);
         root.addView(addressRow, ap);
 
+        // Fixed, keyboard-safe action bar: these controls must never be inside
+        // the weighted/scrollable page, which may collapse on small Android screens.
+        LinearLayout quickActions = new LinearLayout(this);
+        quickActions.setGravity(Gravity.CENTER_VERTICAL);
+        String[] quickLabels = {"PASTE", "ANALYZE", "DOWNLOAD"};
+        for (int i = 0; i < quickLabels.length; i++) {
+            final int action = i;
+            Button quick = button(quickLabels[i], i == 2 ? 0xff3d6449 : STEEL);
+            LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(0, dp(46), 1);
+            if (i > 0) qp.leftMargin = dp(6);
+            quickActions.addView(quick, qp);
+            quick.setOnClickListener(v -> {
+                if (action == 0) pasteLink();
+                else if (action == 1) { switchTab(0); inspect(); }
+                else queueDownload();
+            });
+        }
+        LinearLayout.LayoutParams qaParams = new LinearLayout.LayoutParams(-1, dp(46));
+        qaParams.topMargin = dp(7);
+        root.addView(quickActions, qaParams);
+
         host = new FrameLayout(this);
         LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, 0, 1);
         hp.topMargin = dp(9);
@@ -170,8 +205,8 @@ public final class MainActivity extends Activity {
 
         linkPage = makeLinkPage();
         host.addView(linkPage, new FrameLayout.LayoutParams(-1, -1));
-        browser = makeBrowser();
-        host.addView(browser, new FrameLayout.LayoutParams(-1, -1));
+        // Do not initialize WebView until WEB is selected: an eager WebView
+        // allocates a browser process even when only pasting a link.
         listPage = new ScrollView(this);
         listBody = new LinearLayout(this);
         listBody.setOrientation(LinearLayout.VERTICAL);
@@ -398,9 +433,13 @@ public final class MainActivity extends Activity {
     }
 
     private void switchTab(int index) {
+        if (index == 1 && browser == null) {
+            browser = makeBrowser();
+            host.addView(browser, new FrameLayout.LayoutParams(-1, -1));
+        }
         tab = index;
         linkPage.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
-        browser.setVisibility(index == 1 ? View.VISIBLE : View.GONE);
+        if (browser != null) browser.setVisibility(index == 1 ? View.VISIBLE : View.GONE);
         listPage.setVisibility(index >= 2 ? View.VISIBLE : View.GONE);
         for (int i = 0; i < tabButtons.length; i++) {
             tabButtons[i].setBackground(buttonBackground(i == index ? 0xff49614b : STEEL));
@@ -408,7 +447,9 @@ public final class MainActivity extends Activity {
         }
         refreshCaptureButton();
         if (index == 2 || index == 3) renderList();
-        if (index == 1 && "about:blank".equals(browser.getUrl())) status.setText("WEB BROWSER  •  ENTER URL AND PRESS GO");
+        if (index == 1 && browser != null && (browser.getUrl() == null
+                || "about:blank".equals(browser.getUrl())))
+            status.setText("WEB BROWSER • ENTER URL AND PRESS GO");
     }
 
     private void chooseMode(int index) {
@@ -435,10 +476,17 @@ public final class MainActivity extends Activity {
         ClipData clip = manager.getPrimaryClip();
         if (clip == null || clip.getItemCount() == 0) return;
         String pasted = String.valueOf(clip.getItemAt(0).coerceToText(this));
-        String url = extractLink(pasted);
+        String url = normalize(extractLink(pasted));
         address.setText(url);
-        if (DownloadService.validUrl(url)) inspect();
-        else toast("No URL found in clipboard");
+        hideKeyboard();
+        if (DownloadService.validUrl(url)) {
+            // Pasting must be immediate; do not start a potentially long-running
+            // network metadata inspection until the user explicitly requests it.
+            status.setText("LINK PASTED • TAP DOWNLOAD OR ANALYZE");
+            preview.setText("LINK READY\n\n" + Uri.parse(url).getHost()
+                    + "\nUse the always-visible DOWNLOAD button above.");
+            toast("Link ready");
+        } else toast("No valid link found in clipboard");
     }
 
     private void inspect() {
@@ -541,10 +589,14 @@ public final class MainActivity extends Activity {
     private void queueDownload() {
         String url = normalize(address.getText().toString());
         if (!DownloadService.validUrl(url)) { toast("Enter a valid http(s) URL"); return; }
+        address.setText(url);
+        hideKeyboard();
+        status.setText("ADDING TO QUEUE • " + Uri.parse(url).getHost());
         boolean queued = launchService(DownloadService.ADD, url, mode, null);
         if (queued) {
-            status.setText("QUEUED • OPEN QUEUE FOR LIVE PROGRESS");
+            status.setText("QUEUED • DOWNLOAD STARTING");
             switchTab(2);
+            toast("Added to download queue");
         } else status.setText("COULD NOT START DOWNLOAD SERVICE");
     }
 
@@ -797,14 +849,14 @@ public final class MainActivity extends Activity {
         receiveLink(intent);
     }
     @Override public void onBackPressed() {
-        if (tab == 1 && browser.canGoBack()) browser.goBack();
+        if (tab == 1 && browser != null && browser.canGoBack()) browser.goBack();
         else if (tab != 0) switchTab(0);
         else super.onBackPressed();
     }
     @Override protected void onDestroy() {
         destroyed = true;
         ui.removeCallbacks(tick);
-        browser.destroy();
+        if (browser != null) browser.destroy();
         super.onDestroy();
     }
 }
