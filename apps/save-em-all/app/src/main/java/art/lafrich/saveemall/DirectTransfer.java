@@ -30,6 +30,11 @@ public final class DirectTransfer {
     }
 
     public static File download(String url, File directory, Progress progress) throws Exception {
+        return download(url, directory, null, null, progress);
+    }
+
+    public static File download(String url, File directory,
+            String referer, String agent, Progress progress) throws Exception {
         if (!supports(url)) throw new IllegalArgumentException("Bukan link file media langsung");
         if (!directory.isDirectory() && !directory.mkdirs()) throw new IllegalStateException("Folder gagal dibuat");
         String path = Uri.parse(url).getPath();
@@ -45,6 +50,12 @@ public final class DirectTransfer {
             connection.setRequestProperty("Accept", "video/*, audio/*, application/octet-stream, */*");
             connection.setRequestProperty("Accept-Encoding", "identity");
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36");
+            if (referer != null && (referer.startsWith("https://") || referer.startsWith("http://"))
+                    && !referer.contains("\r") && !referer.contains("\n"))
+                connection.setRequestProperty("Referer", referer);
+            if (agent != null && !agent.isEmpty() && agent.length() < 1024
+                    && !agent.contains("\r") && !agent.contains("\n"))
+                connection.setRequestProperty("User-Agent", agent);
 
             int status = connection.getResponseCode();
             if (status < 200 || status >= 300) {

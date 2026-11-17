@@ -1,4 +1,4 @@
-# Save em all — by Lafrich (v0.7.0)
+# Save em all — by Lafrich (v0.7.1)
 
 Android stream and media downloader. Independent application in the Laifu repository,
 using original retro Winamp-inspired dark-metal panels, green LCD, compact controls
@@ -77,3 +77,10 @@ dependency. Distribution of compiled APKs must comply with applicable licenses.
 - Background auto-update begins shortly after launch. A failed check is never cached for twelve hours; user can retry via UPDATE YT-DLP NOW. Nightly is preferred, stable is fallback.
 - Android wrapper library stays at 0.18.1; this is separate from yt-dlp's date-based executable version.
 - Existing Vidara, Pornhub URL support for accessible public media, WEB Capture, download modes, queue and history remain.
+
+## v0.7.1: Browser impersonation errors
+- Some yt-dlp site extractors request `impersonate=True`, which requires a compatible `curl_cffi` runtime. Updating the Python yt-dlp ZIP alone does not provide `curl_cffi` on Android. This APK does **not** claim to include curl_cffi or native TLS impersonation.
+- Failed Pornhub downloads with impersonation/curl_cffi errors now show **OPEN VIDEO IN WEB • SCAN PLAYER**. This opens the page in the embedded WebView (without copying cookies to yt-dlp), so a user can play publicly available videos and attempt to capture accessible media requests.
+- WEB has a clickable **SCAN PLAYER** action even before any stream is detected. It reads ordinary HTML5 video/source URLs from the currently loaded page and uses WebView-request interception for direct .m3u8/.mp4 etc.
+- Captured direct media files (.mp4/.webm/etc) now transfer via Android's HTTP downloader with the browser's page Referer and User-Agent; yt-dlp isn't required for those ordinary files. HLS/DASH still use yt-dlp.
+- This may not work for blob streams, DRM, authentication, anti-bot checks, restricted access, signed/expired media, or sites that prevent playback in WebView. It does not evade those protections.

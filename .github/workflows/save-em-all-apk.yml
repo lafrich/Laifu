@@ -63,16 +63,16 @@ jobs:
 
       - name: Prepare directly downloadable APK
         run: |
-          cp apps/save-em-all/app/build/outputs/apk/debug/app-debug.apk Save-em-all-v0.7.0.apk
+          cp apps/save-em-all/app/build/outputs/apk/debug/app-debug.apk Save-em-all-v0.7.1.apk
       - name: Publish APK on GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: save-em-all-v0.7.0
-          name: "Save em all by Lafrich v0.7.0"
+          tag_name: save-em-all-v0.7.1
+          name: "Save em all by Lafrich v0.7.1"
           body: |
-            Android APK with current official yt-dlp nightly bundled and tested on Android runtime, fixed engine updates, and existing Vidara, WEB capture and queue support.
+            Android APK with yt-dlp nightly and a WebView media capture fallback for sources requiring unsupported curl_cffi impersonation. No DRM or access-control bypass.
             Download the APK asset directly below to install on Android 10+.
             This is a debug-signed APK; uninstall may be required if switching debug signing keys.
-          files: Save-em-all-v0.7.0.apk
+          files: Save-em-all-v0.7.1.apk
           fail_on_unmatched_files: true
           overwrite_files: true

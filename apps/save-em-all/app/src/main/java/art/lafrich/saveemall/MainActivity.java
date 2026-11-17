@@ -380,10 +380,7 @@ public final class MainActivity extends Activity {
                     String candidate = request.getUrl().toString();
                     if (isMediaResource(candidate)) ui.post(() -> {
                         if (destroyed || !PornhubSupport.isSupportedHost(view.getUrl())) return;
-                        discoveredUrl = candidate;
-                        discoveredReferer = view.getUrl();
-                        discoveredAgent = view.getSettings().getUserAgentString();
-                        refreshCaptureButton();
+                        rememberMediaCandidate(candidate);
                         if (tab == 1) status.setText("WEB: MEDIA LINK DETECTED");
                     });
                 }
@@ -392,13 +389,70 @@ public final class MainActivity extends Activity {
         });
         page.setDownloadListener((url, agent, disposition, mime, size) -> {
             if (!DownloadService.validUrl(url)) return;
-            discoveredUrl = url;
-            discoveredReferer = page.getUrl();
-            discoveredAgent = agent;
-            refreshCaptureButton();
+            rememberMediaCandidate(url);
             status.setText("WEB: DOWNLOAD LINK DETECTED");
         });
         return page;
+    }
+
+    private void rememberMediaCandidate(String link) {
+        if (!DownloadService.validUrl(link) || browser == null) return;
+        discoveredUrl = link;
+        discoveredReferer = browser.getUrl();
+        discoveredAgent = browser.getSettings().getUserAgentString();
+        refreshCaptureButton();
+    }
+
+    private void scanWebPlayer() {
+        if (browser == null || !DownloadService.validUrl(browser.getUrl())) {
+            toast("Open a video page in WEB first");
+            return;
+        }
+        status.setText("WEB: SCANNING PLAYER VIDEO ELEMENT");
+        // Inspect media elements on the user's currently open page only.
+        // Browser sandbox / cross-origin and DRM restrictions remain unchanged.
+        String js = "(function(){var docs=[document];"
+                + "document.querySelectorAll('iframe').forEach(function(f){try{if(f.contentDocument)docs.push(f.contentDocument)}catch(e){}});"
+                + "for(var d of docs){for(var v of d.querySelectorAll('video, video source')){"
+                + "for(var u of [v.currentSrc,v.src,v.getAttribute('src')]){"
+                + "if(u&&/^https?:\\/\\//i.test(u))return u;}}}return '';})()";
+        browser.evaluateJavascript(js, result -> {
+            if (destroyed || browser == null) return;
+            try {
+                Object val = new org.json.JSONTokener(result).nextValue();
+                String candidate = val instanceof String ? (String) val : "";
+                if (isMediaResource(candidate)) {
+                    rememberMediaCandidate(candidate);
+                    status.setText("WEB: VIDEO SOURCE FOUND • TAP USE STREAM");
+                    toast("Media source detected");
+                } else {
+                    status.setText("WEB: NO DIRECT MEDIA SOURCE YET");
+                    toast("Play the video first, then tap SCAN again. Protected streams cannot be captured.");
+                }
+            } catch (Exception e) {
+                status.setText("WEB: PLAYER SOURCE NOT AVAILABLE");
+                toast("No downloadable player source found");
+            }
+        });
+    }
+
+    private void openWebUrl(String url) {
+        if (!DownloadService.validUrl(url)) {
+            toast("Invalid page URL");
+            return;
+        }
+        address.setText(url);
+        hideKeyboard();
+        switchTab(1);
+        browser.loadUrl(url);
+        status.setText("WEB: PLAY THE VIDEO, THEN TAP SCAN PLAYER");
+    }
+
+    private static boolean isImpersonationError(String detail) {
+        if (detail == null) return false;
+        String lower = detail.toLowerCase(Locale.ROOT);
+        return lower.contains("impersonation") || lower.contains("impersonate")
+                || lower.contains("curl_cffi") || lower.contains("browser emulation");
     }
 
     private static boolean isMediaResource(String input) {
@@ -412,14 +466,14 @@ public final class MainActivity extends Activity {
         if (captureButton == null) return;
         boolean ready = DownloadService.validUrl(discoveredUrl);
         captureButton.setVisibility(tab == 1 ? View.VISIBLE : View.GONE);
-        captureButton.setEnabled(ready);
+        captureButton.setEnabled(tab == 1);
         captureButton.setText(ready ? "USE DETECTED MEDIA STREAM"
-                : "PLAY VIDEO IN WEB TO DETECT STREAM");
+                : "SCAN PLAYER • PLAY VIDEO FIRST");
     }
 
     private void useCapturedStream() {
         if (!DownloadService.validUrl(discoveredUrl)) {
-            toast("Play the video first");
+            scanWebPlayer();
             return;
         }
         selectedMediaUrl = discoveredUrl;
@@ -449,7 +503,7 @@ public final class MainActivity extends Activity {
         if (index == 2 || index == 3) renderList();
         if (index == 1 && browser != null && (browser.getUrl() == null
                 || "about:blank".equals(browser.getUrl())))
-            status.setText("WEB BROWSER • ENTER URL AND PRESS GO");
+            status.setText("WEB BROWSER • PASTE VIDEO LINK AND PRESS GO");
     }
 
     private void chooseMode(int index) {
@@ -467,7 +521,7 @@ public final class MainActivity extends Activity {
         address.setText(url);
         hideKeyboard();
         browser.loadUrl(url);
-        status.setText("BROWSING  •  USE LINK TAB TO SAVE CURRENT PAGE");
+        status.setText("WEB: PLAY VIDEO AND TAP SCAN PLAYER BELOW");
     }
 
     private void pasteLink() {
@@ -525,7 +579,15 @@ public final class MainActivity extends Activity {
                 }
                 found = true;
             } catch (Exception e) {
-                result = "PREVIEW UNAVAILABLE\n\nTry DOWNLOAD directly. " + shortText(ProxySettings.redact(this, e.getMessage()), 115);
+                String detail = ProxySettings.redact(this, e.getMessage());
+                if (isImpersonationError(detail) && PornhubSupport.isSupportedHost(url)) {
+                    result = "BROWSER IMPERSONATION UNAVAILABLE\n\n"
+                            + "This Android yt-dlp runtime lacks curl_cffi. "
+                            + "Open WEB, play an accessible video and tap SCAN PLAYER. "
+                            + "Updating yt-dlp alone does not install curl_cffi.";
+                } else {
+                    result = "PREVIEW UNAVAILABLE\n\nTry DOWNLOAD directly. " + shortText(detail, 115);
+                }
             }
             final String message = result;
             final boolean success = found;
@@ -672,6 +734,15 @@ public final class MainActivity extends Activity {
         card.addView(details);
 
         if ("FAILED".equals(state)) {
+            if (isImpersonationError(job.optString("detail"))
+                    && PornhubSupport.isSupportedHost(url)) {
+                Button webFallback = button("OPEN VIDEO IN WEB • SCAN PLAYER", 0xff416748);
+                LinearLayout.LayoutParams webParams =
+                        new LinearLayout.LayoutParams(-1, dp(47));
+                webParams.bottomMargin = dp(8);
+                card.addView(webFallback, webParams);
+                webFallback.setOnClickListener(v -> openWebUrl(url));
+            }
             Button show = button("WHY FAILED? / COPY ERROR", 0xff70474b);
             LinearLayout.LayoutParams showParams = new LinearLayout.LayoutParams(-1, dp(37));
             showParams.bottomMargin = dp(9);

@@ -139,12 +139,13 @@ public final class DownloadService extends Service {
 
             // Direct MP4/MP3/etc URLs are ordinary HTTP resources, not website pages.
             // Prefer simple HTTP streaming so these work even if yt-dlp's extractor is outdated.
-            if (browserReferer.isEmpty() && ProxySettings.get(this).isEmpty()
-                    && DirectTransfer.supports(url) && !"AUDIO".equals(mode)) {
+            if (ProxySettings.get(this).isEmpty() && DirectTransfer.supports(url)
+                    && !"AUDIO".equals(mode)) {
                 File base = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
                 if (base == null) base = getCacheDir();
                 stage = new File(base, "staging/" + id);
-                File result = DirectTransfer.download(url, stage, (percent, detail) -> {
+                File result = DirectTransfer.download(url, stage,
+                        browserReferer, browserAgent, (percent, detail) -> {
                     if ("CANCELLED".equals(state(id))) throw new InterruptedException("Cancelled");
                     Store.patch(this, id, null, percent, detail, null, null);
                     postNotification("Direct download " + percent + "%", percent);
@@ -302,7 +303,14 @@ public final class DownloadService extends Service {
         String raw = ProxySettings.redact(this, e.getMessage() == null ? e.toString() : e.getMessage());
         String m = raw.toLowerCase(Locale.ROOT);
         String advice;
-        if ((PornhubSupport.isSupportedHost(url) || PornhubSupport.isSupportedHost(browserReferer))
+        if (m.contains("impersonat") || m.contains("curl_cffi")
+                || m.contains("browser emulation")) {
+            advice = "IMPERSONATION_UNAVAILABLE • yt-dlp membutuhkan curl_cffi untuk sumber ini; "
+                    + "runtime Android ini belum mendukungnya. "
+                    + "Perbarui yt-dlp saja tidak cukup. "
+                    + "Jika video publik dapat diputar di WEB, coba OPEN VIDEO IN WEB lalu SCAN PLAYER. ";
+        }
+        else if ((PornhubSupport.isSupportedHost(url) || PornhubSupport.isSupportedHost(browserReferer))
                 && (m.contains("403") || m.contains("unavailable")
                 || m.contains("country") || m.contains("sign in") || m.contains("login")
                 || m.contains("cookies"))) advice = "Pornhub • Video mungkin tidak publik, membutuhkan akses resmi, atau dibatasi wilayah. Tidak bisa melewati proteksi situs. ";
