@@ -1,4 +1,4 @@
-# Save em all — by Lafrich (v0.6.1)
+# Save em all — by Lafrich (v0.7.0)
 
 Android stream and media downloader. Independent application in the Laifu repository,
 using original retro Winamp-inspired dark-metal panels, green LCD, compact controls
@@ -69,3 +69,11 @@ dependency. Distribution of compiled APKs must comply with applicable licenses.
 - Keyboard DONE hides the keyboard; initial focus stays off the edit field; PASTE is immediate and no longer launches automatic metadata extraction.
 - Browser WebView is lazy-loaded only when WEB is opened, reducing startup memory/process overhead for LINK.
 - Queue submit shows immediate feedback and switches to the live queue. Existing Vidara, Pornhub, four modes, download history and WEB capture logic are preserved.
+
+## v0.7.0: yt-dlp engine freshness
+- GitHub Actions downloads the official latest yt-dlp nightly Unix zipapp on every APK build, validates it, and embeds the release tag.
+- Application R.raw.ytdlp overrides the library's outdated raw resource; an existing installation migrates to the updated bundle on first engine initialization unless the user already installed a newer build.
+- Runtime is checked using yt-dlp --version with the actual Android Python environment. A failed migration restores the previous engine rather than silently claiming success.
+- Background auto-update begins shortly after launch. A failed check is never cached for twelve hours; user can retry via UPDATE YT-DLP NOW. Nightly is preferred, stable is fallback.
+- Android wrapper library stays at 0.18.1; this is separate from yt-dlp's date-based executable version.
+- Existing Vidara, Pornhub URL support for accessible public media, WEB Capture, download modes, queue and history remain.

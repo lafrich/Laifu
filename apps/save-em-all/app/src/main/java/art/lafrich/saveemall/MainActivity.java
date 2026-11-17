@@ -106,11 +106,10 @@ public final class MainActivity extends Activity {
         }
         receiveLink(getIntent());
         ui.post(tick);
-        // Defer automatic yt-dlp update until the app has been idle for a while.
-        // A lengthy update must never be the first thing blocking user downloads.
+        // Begin engine verification in a worker soon after launch, not 45 s later.
         ui.postDelayed(() -> {
             if (!destroyed && noActiveDownloads()) updateEngine(false);
-        }, 45000L);
+        }, 1200L);
     }
 
     private void buildUi() {
@@ -295,7 +294,8 @@ public final class MainActivity extends Activity {
         settingsTitle.setPadding(0, dp(19), 0, dp(10));
         body.addView(settingsTitle);
 
-        engineInfo = text("YT-DLP • Checking engine...", 11, SUBTLE, false);
+        engineInfo = text("YT-DLP • " + EngineManager.installedVersion(this)
+                + "\nChecking engine...", 11, SUBTLE, false);
         engineInfo.setPadding(dp(9), dp(7), dp(9), dp(8));
         engineInfo.setBackground(panelBackground());
         body.addView(engineInfo);
